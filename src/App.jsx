@@ -771,9 +771,9 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
   });
 
   const visibleTipos = tipos.filter((t) => {
-    if (filterTipo !== "todos" && t.id !== filterTipo) return false;
+    if (filterTipo !== "todos") return t.id === filterTipo;
     const count = filtered.filter((p) => p.tipo === t.id).length;
-    return count > 0 || BASE_IDS.includes(t.id);
+    return count > 0;
   });
 
   const riskById = {};
@@ -853,29 +853,41 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
           </div>
           <div style={styles.statsGrid}>
             <div style={styles.statsCol}>
-              <div style={styles.statsColTitle}>Tipos de planta</div>
+              <div style={styles.statsColTitle}><Leaf size={12} /> Tipos de planta</div>
               {tipoCounts.length === 0 ? (
                 <p style={styles.climateEmpty}>Aún no hay plantas registradas.</p>
               ) : (
-                <div style={styles.badgeWrap}>
-                  {tipoCounts.map((tp) => (
-                    <span key={tp.id} style={{ ...styles.typeBadge, borderColor: tp.color }}>
-                      <span style={{ ...styles.areaDot, background: tp.color }} /> {tp.label} · {tp.count}
-                    </span>
-                  ))}
-                </div>
+                <>
+                  <div style={styles.statsBigRow}>
+                    <span style={styles.statsBigNum}>{tipoCounts.length}</span>
+                    <span style={styles.statsBigLabel}>{tipoCounts.length === 1 ? "área activa" : "áreas activas"}</span>
+                  </div>
+                  <div style={styles.badgeWrap}>
+                    {tipoCounts.map((tp) => (
+                      <span key={tp.id} style={{ ...styles.typeBadge, borderColor: tp.color }}>
+                        <span style={{ ...styles.areaDot, background: tp.color }} /> {tp.label} · {tp.count}
+                      </span>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
             <div style={styles.statsCol}>
-              <div style={styles.statsColTitle}>Clima predominante</div>
+              <div style={styles.statsColTitle}><CloudSun size={12} /> Clima predominante</div>
               {climaList.length === 0 ? (
                 <p style={styles.climateEmpty}>Agrega el clima que prefiere cada planta para ver un resumen aquí.</p>
               ) : (
-                <div style={styles.badgeWrap}>
-                  {climaList.map(([c, n]) => (
-                    <span key={c} style={styles.climaBadge}>{c} · {n}</span>
-                  ))}
-                </div>
+                <>
+                  <div style={styles.statsBigRow}>
+                    <span style={styles.statsBigNum}>{climaList.length}</span>
+                    <span style={styles.statsBigLabel}>{climaList.length === 1 ? "clima distinto" : "climas distintos"}</span>
+                  </div>
+                  <div style={styles.badgeWrap}>
+                    {climaList.map(([c, n]) => (
+                      <span key={c} style={styles.climaBadge}>{c} · {n}</span>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
             <div style={styles.statsCol}>
@@ -883,14 +895,20 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
               {incidentPlants.length === 0 ? (
                 <p style={styles.climateEmpty}>Sin incidentes reportados. Agrega notas o eventos de "plaga" en cada planta para verlos aquí.</p>
               ) : (
-                <div style={styles.incidentList}>
-                  {incidentPlants.map((p) => (
-                    <div key={p.id} style={styles.incidentItem}>
-                      <AlertTriangle size={12} color="#8A3B1D" />
-                      <span>{p.nombre}</span>
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <div style={styles.statsBigRow}>
+                    <span style={{ ...styles.statsBigNum, color: "#8A3B1D" }}>{incidentPlants.length}</span>
+                    <span style={styles.statsBigLabel}>{incidentPlants.length === 1 ? "planta afectada" : "plantas afectadas"}</span>
+                  </div>
+                  <div style={styles.incidentList}>
+                    {incidentPlants.map((p) => (
+                      <div key={p.id} style={styles.incidentItem}>
+                        <AlertTriangle size={12} color="#8A3B1D" />
+                        <span>{p.nombre}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -1060,6 +1078,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
                     const ult = lastEvento(p);
                     return (
                       <div key={p.id} style={{ ...styles.card, ...(risk ? styles.cardAtRisk : {}) }} className="plant-card">
+                        <div style={{ ...styles.cardStripe, background: info.color }} />
                         <div style={styles.cardImageWrap} onClick={() => setDetailPlantId(p.id)}>
                           {p.imagen ? (
                             <img src={p.imagen} alt={p.nombre} style={styles.cardImage} />
@@ -1117,19 +1136,26 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
               <img src={form.imagen} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 8, marginTop: 10 }} />
             )}
 
-            <label style={styles.label}>Nombre popular</label>
-            <input style={styles.input} placeholder="Ej. Tuna" value={form.nombre}
-              onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
-
-            <label style={styles.label}>Nombre científico / variedad</label>
-            <input style={styles.input} placeholder="Ej. Opuntia ficus-indica" value={form.variedad}
-              onChange={(e) => setForm({ ...form, variedad: e.target.value })} />
+            <div style={styles.formSection}><Leaf size={12} /> Identidad</div>
+            <div style={styles.formRow2}>
+              <div>
+                <label style={styles.label}>Nombre popular</label>
+                <input style={styles.input} placeholder="Ej. Tuna" value={form.nombre}
+                  onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
+              </div>
+              <div>
+                <label style={styles.label}>Nombre científico / variedad</label>
+                <input style={styles.input} placeholder="Ej. Opuntia ficus-indica" value={form.variedad}
+                  onChange={(e) => setForm({ ...form, variedad: e.target.value })} />
+              </div>
+            </div>
 
             <label style={styles.label}>Área / tipo de planta</label>
             <select style={styles.input} value={form.tipo} onChange={(e) => handleTipoChange(e.target.value)}>
               {tipos.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
 
+            <div style={styles.formSection}><Droplet size={12} /> Sustrato y cuidados</div>
             <label style={styles.label}>Sustrato</label>
             <textarea style={{ ...styles.input, minHeight: 60, resize: "vertical" }} value={form.sustrato}
               onChange={(e) => setForm({ ...form, sustrato: e.target.value })} />
@@ -1150,6 +1176,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
             <textarea style={{ ...styles.input, minHeight: 50, resize: "vertical" }} placeholder="Si no es nativa de zonas áridas…"
               value={form.adaptacion} onChange={(e) => setForm({ ...form, adaptacion: e.target.value })} />
 
+            <div style={styles.formSection}><Home size={12} /> Llegada y ubicación</div>
             <label style={styles.label}>Fecha de llegada</label>
             <input type="date" style={styles.input} value={form.fechaLlegada}
               onChange={(e) => setForm({ ...form, fechaLlegada: e.target.value })} />
@@ -1166,6 +1193,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
             <input style={styles.input} placeholder="https://…" value={form.imagen && form.imagen.startsWith("data:") ? "" : form.imagen}
               onChange={(e) => setForm({ ...form, imagen: e.target.value })} />
 
+            <div style={styles.formSection}><FileText size={12} /> Notas</div>
             <label style={styles.label}>Notas (opcional)</label>
             <textarea style={{ ...styles.input, minHeight: 50, resize: "vertical" }} placeholder="Cualquier otro detalle…"
               value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} />
@@ -1358,6 +1386,9 @@ const styles = {
   statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 18, marginTop: 12 },
   statsCol: {},
   statsColTitle: { display: "flex", alignItems: "center", gap: 5, fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.04em", color: "#8A7857", marginBottom: 8 },
+  statsBigRow: { display: "flex", alignItems: "baseline", gap: 7, marginBottom: 8 },
+  statsBigNum: { fontFamily: "'Fraunces', serif", fontSize: 30, fontWeight: 600, color: "#211C14", lineHeight: 1 },
+  statsBigLabel: { fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#6B4F2A" },
   badgeWrap: { display: "flex", flexWrap: "wrap", gap: 6 },
   typeBadge: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, background: "#fff", border: "1px solid", borderRadius: 20, padding: "4px 10px", color: "#3C3120" },
   climaBadge: { fontSize: 12, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 20, padding: "4px 10px", color: "#3C3120" },
@@ -1383,7 +1414,7 @@ const styles = {
   select: { border: "1px solid #D8C9A0", borderRadius: 8, padding: "9px 12px", fontSize: 14, background: "#fff", color: "#211C14" },
   addBtn: { display: "flex", alignItems: "center", gap: 6, background: "#2F5233", color: "#F1E9D2", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
   addBtnGhostSmall: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#211C14", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600 },
-  addBtnGhost: { display: "flex", alignItems: "center", gap: 6, background: "#211C14", color: "#F1E9D2", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
+  addBtnGhost: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#211C14", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
   errorBanner: { maxWidth: 980, margin: "0 auto 16px", background: "#F3D8C8", color: "#6B2E12", padding: "10px 14px", borderRadius: 8, fontSize: 13.5 },
   successBanner: { maxWidth: 980, margin: "0 auto 16px", background: "#DCEAD8", color: "#2F5233", padding: "10px 14px", borderRadius: 8, fontSize: 13.5 },
   logoutBtn: { background: "transparent", border: "1px solid #D8C9A0", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, color: "#211C14", fontWeight: 600, whiteSpace: "nowrap" },
@@ -1399,6 +1430,7 @@ const styles = {
   areaEmpty: { fontSize: 13, color: "#8A7857", fontStyle: "italic", margin: 0 },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 18 },
   card: { background: "#fff", borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column", position: "relative", boxShadow: "0 1px 4px rgba(33,28,20,0.10)" },
+  cardStripe: { height: 4, width: "100%" },
   cardAtRisk: { border: "1px solid #C97B4A", boxShadow: "0 0 0 1px #C97B4A22" },
   cardImageWrap: { position: "relative", height: 170, cursor: "pointer" },
   cardImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
@@ -1422,13 +1454,15 @@ const styles = {
   cardActions: { display: "flex", borderTop: "1px solid #EFE8D4" },
   iconBtn: { flex: 1, background: "transparent", border: "none", padding: "9px 0", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B4F2A" },
   overlay: { position: "fixed", inset: 0, background: "rgba(33,28,20,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 50 },
-  modal: { background: "#F1E9D2", borderRadius: 14, padding: 22, width: "100%", maxWidth: 420, maxHeight: "88vh", overflowY: "auto", display: "flex", flexDirection: "column" },
+  modal: { background: "#F1E9D2", borderRadius: 14, padding: 22, width: "100%", maxWidth: 480, maxHeight: "88vh", overflowY: "auto", display: "flex", flexDirection: "column" },
   modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
   modalTitle: { fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, margin: 0 },
   closeBtn: { background: "transparent", border: "none", color: "#211C14" },
   aiBanner: { display: "flex", alignItems: "center", gap: 6, background: "#E8DFC8", color: "#3C3120", fontSize: 12, padding: "7px 10px", borderRadius: 6, marginTop: 6 },
   arrivalBox: { display: "flex", gap: 8, background: "#E8DFC8", borderRadius: 8, padding: "9px 11px", marginTop: 10 },
   label: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6B4F2A", marginTop: 12, marginBottom: 5 },
+  formSection: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "#A85C32", marginTop: 20, paddingTop: 14, borderTop: "1px solid #E4DAC0" },
+  formRow2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
   input: { width: "100%", border: "1px solid #D8C9A0", borderRadius: 8, padding: "9px 11px", fontSize: 13.5, background: "#fff", color: "#211C14", outline: "none" },
   modalActions: { display: "flex", gap: 10, marginTop: 20 },
   cancelBtn: { flex: 1, background: "transparent", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 0", fontSize: 13.5, color: "#211C14" },
