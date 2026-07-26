@@ -12,118 +12,118 @@ const BASE_TIPOS = [
   {
     id: "cactus",
     label: "Cactus y suculentas",
-    color: "#A85C32",
+    color: "#2F9E44",
     sustrato: "60% arena gruesa, 25% tierra de hoja, 15% grava fina — drenaje máximo, pensado para el calor seco de Ica.",
     estratos: [60, 25, 15],
   },
   {
     id: "tropical",
     label: "Tropicales",
-    color: "#2F5233",
+    color: "#12B886",
     sustrato: "40% tierra negra, 30% fibra de coco o turba, 20% compost, 10% perlita — retiene humedad extra frente al ambiente seco.",
     estratos: [40, 30, 20, 10],
   },
   {
     id: "frutal",
     label: "Frutales",
-    color: "#6B4F2A",
+    color: "#FF922B",
     sustrato: "50% tierra de chacra, 30% compost, 20% arena — cubrir con mulch para conservar humedad del suelo.",
     estratos: [50, 30, 20],
   },
   {
     id: "aromatica",
     label: "Aromáticas y hierbas",
-    color: "#5C7A4A",
+    color: "#74C69D",
     sustrato: "50% tierra de hoja, 30% arena, 20% compost — buen drenaje, riego moderado y frecuente.",
     estratos: [50, 30, 20],
   },
   {
     id: "ornamental",
     label: "Ornamentales de interior",
-    color: "#8FB79B",
+    color: "#51CF66",
     sustrato: "40% tierra negra, 30% compost, 20% perlita, 10% arena.",
     estratos: [40, 30, 20, 10],
   },
   {
     id: "palmera",
     label: "Palmeras",
-    color: "#B08D57",
+    color: "#94D82D",
     sustrato: "50% tierra franca, 30% arena gruesa, 20% compost — buen drenaje con retención moderada de humedad.",
     estratos: [50, 30, 20],
   },
   {
     id: "conifera",
     label: "Coníferas y árboles",
-    color: "#4A5D3A",
+    color: "#2B8A3E",
     sustrato: "60% tierra de jardín, 25% arena, 15% compost — suelo suelto y bien aireado.",
     estratos: [60, 25, 15],
   },
   {
     id: "trepadora",
     label: "Trepadoras y enredaderas",
-    color: "#6B8A5C",
+    color: "#82C91E",
     sustrato: "40% tierra negra, 30% compost, 20% fibra de coco, 10% perlita — soporte firme y riego constante.",
     estratos: [40, 30, 20, 10],
   },
   {
     id: "bulbosa",
     label: "Bulbosas y rizomatosas",
-    color: "#A6763E",
+    color: "#F59F00",
     sustrato: "50% tierra franca, 30% arena, 20% compost — drenaje rápido para evitar pudrición del bulbo.",
     estratos: [50, 30, 20],
   },
   {
     id: "orquidea",
     label: "Orquídeas",
-    color: "#8B5E83",
+    color: "#E64980",
     sustrato: "70% corteza de pino, 20% musgo sphagnum, 10% carbón activado — sustrato aireado, sin tierra.",
     estratos: [70, 20, 10],
   },
   {
     id: "helecho",
     label: "Helechos",
-    color: "#3E6B5A",
+    color: "#37B24D",
     sustrato: "40% turba o fibra de coco, 30% tierra de hoja, 20% perlita, 10% carbón — alta retención de humedad.",
     estratos: [40, 30, 20, 10],
   },
   {
     id: "acuatica",
     label: "Plantas acuáticas",
-    color: "#3B6B8A",
+    color: "#22B8CF",
     sustrato: "Sustrato arcilloso o grava fina en el fondo del recipiente, sumergido en agua limpia.",
     estratos: [70, 30],
   },
   {
     id: "cesped",
     label: "Césped y cobertoras",
-    color: "#5C8A3E",
+    color: "#74B816",
     sustrato: "60% tierra franca, 25% arena, 15% compost — nivelado y bien compactado.",
     estratos: [60, 25, 15],
   },
   {
     id: "bonsai",
     label: "Bonsái",
-    color: "#7A5C3E",
+    color: "#D9480F",
     sustrato: "Akadama, arena gruesa y un poco de compost en partes iguales — excelente drenaje.",
     estratos: [34, 33, 33],
   },
   {
     id: "medicinal",
     label: "Medicinales",
-    color: "#7A8A4A",
+    color: "#40C057",
     sustrato: "50% tierra de hoja, 30% compost, 20% arena — riego moderado según la especie.",
     estratos: [50, 30, 20],
   },
   {
     id: "otra",
     label: "Otras",
-    color: "#9C8B6E",
+    color: "#868E96",
     sustrato: "Sustrato balanceado con buen drenaje; ajustar según la especie.",
     estratos: [50, 50],
   },
 ];
 const BASE_IDS = BASE_TIPOS.map((t) => t.id);
-const EXTRA_COLORS = ["#7A5C3E", "#4A6B5C", "#8B5E83", "#5C6B8A", "#9B7653", "#3E6B5A", "#8A5C6B"];
+const EXTRA_COLORS = ["#D9480F", "#15AABF", "#E64980", "#5C7CFA", "#FAB005", "#37B24D", "#F06595"];
 
 const CARE_INFO = {
   cactus: {
@@ -374,7 +374,7 @@ function fileToCompressedDataUrl(file, maxDim = 640, quality = 0.72) {
 
 function StrataBar({ estratos, colorBase, height = 10 }) {
   return (
-    <div style={{ display: "flex", width: "100%", height, borderRadius: 3, overflow: "hidden" }}>
+    <div style={{ display: "flex", width: "100%", height, borderRadius: 6, overflow: "hidden" }}>
       {estratos.map((pct, i) => (
         <div key={i} style={{ width: `${pct}%`, background: colorBase, opacity: 1 - i * 0.22 }} />
       ))}
@@ -405,12 +405,12 @@ function LogModal({ plant, onClose, onAdd, onDelete }) {
 
         {(plant.fechaLlegada || plant.situacionLlegada) && (
           <div style={styles.arrivalBox}>
-            <Home size={13} color="#6B4F2A" />
+            <Home size={13} color="#FF922B" />
             <div>
               <div style={{ fontWeight: 600, fontSize: 12.5 }}>
                 {plant.fechaLlegada ? `Llegó el ${fmtFecha(plant.fechaLlegada)}` : "Llegada registrada"}
               </div>
-              {plant.situacionLlegada && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{plant.situacionLlegada}</div>}
+              {plant.situacionLlegada && <div style={{ fontSize: 12, color: "#52796F" }}>{plant.situacionLlegada}</div>}
             </div>
           </div>
         )}
@@ -440,10 +440,10 @@ function LogModal({ plant, onClose, onAdd, onDelete }) {
             const Icon = info.icon;
             return (
               <div key={ev.id} style={styles.logItem}>
-                <Icon size={14} color="#6B4F2A" style={{ marginTop: 2, flexShrink: 0 }} />
+                <Icon size={14} color="#FF922B" style={{ marginTop: 2, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>{info.label} · {fmtFecha(ev.fecha)}</div>
-                  {ev.nota && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{ev.nota}</div>}
+                  {ev.nota && <div style={{ fontSize: 12, color: "#52796F" }}>{ev.nota}</div>}
                 </div>
                 <button type="button" style={styles.logDelete} onClick={() => onDelete(plant.id, ev.id)} aria-label="Eliminar evento"><Trash2 size={13} /></button>
               </div>
@@ -806,18 +806,18 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
   return (
     <div style={styles.page}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&family=Fredoka:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
         body { margin: 0; }
         input, textarea, select { font-family: 'Work Sans', sans-serif; }
-        ::placeholder { color: #9C8B6E; }
+        ::placeholder { color: #868E96; }
         .plant-card { transition: transform 0.18s ease, box-shadow 0.18s ease; }
-        .plant-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(33,28,20,0.14); }
+        .plant-card:hover { transform: translateY(-4px) scale(1.015); box-shadow: 0 14px 28px rgba(27,67,50,0.18); }
         .icon-btn { transition: background 0.15s ease, color 0.15s ease; }
-        .icon-btn:hover { background: #211C14; color: #F1E9D2; }
+        .icon-btn:hover { background: #1B4332; color: #F3FBF0; }
         button { font-family: 'Work Sans', sans-serif; cursor: pointer; }
         .scroll-thin::-webkit-scrollbar { width: 6px; }
-        .scroll-thin::-webkit-scrollbar-thumb { background: #D8C9A0; border-radius: 3px; }
+        .scroll-thin::-webkit-scrollbar-thumb { background: #BFE8C4; border-radius: 3px; }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
@@ -897,13 +897,13 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
               ) : (
                 <>
                   <div style={styles.statsBigRow}>
-                    <span style={{ ...styles.statsBigNum, color: "#8A3B1D" }}>{incidentPlants.length}</span>
+                    <span style={{ ...styles.statsBigNum, color: "#E03131" }}>{incidentPlants.length}</span>
                     <span style={styles.statsBigLabel}>{incidentPlants.length === 1 ? "planta afectada" : "plantas afectadas"}</span>
                   </div>
                   <div style={styles.incidentList}>
                     {incidentPlants.map((p) => (
                       <div key={p.id} style={styles.incidentItem}>
-                        <AlertTriangle size={12} color="#8A3B1D" />
+                        <AlertTriangle size={12} color="#E03131" />
                         <span>{p.nombre}</span>
                       </div>
                     ))}
@@ -956,7 +956,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
               </div>
               {climate.alerta_general && (
                 <div style={styles.climateAlertGeneral}>
-                  <AlertTriangle size={13} color="#8A3B1D" />
+                  <AlertTriangle size={13} color="#E03131" />
                   <span>{climate.alerta_general}</span>
                 </div>
               )}
@@ -965,8 +965,8 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
                   {climate.plantas_en_riesgo.map((r, i) => (
                     <div key={i} style={styles.riskItem}>
                       <div style={{ fontWeight: 600, fontSize: 12.5 }}>{r.nombre}</div>
-                      <div style={{ fontSize: 12, color: "#5C4A2E" }}>{r.riesgo}</div>
-                      <div style={{ fontSize: 12, color: "#3C3120", marginTop: 3 }}><strong>Qué hacer:</strong> {r.sugerencia}</div>
+                      <div style={{ fontSize: 12, color: "#52796F" }}>{r.riesgo}</div>
+                      <div style={{ fontSize: 12, color: "#2D6A4F", marginTop: 3 }}><strong>Qué hacer:</strong> {r.sugerencia}</div>
                     </div>
                   ))}
                 </div>
@@ -982,7 +982,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
       {/* Toolbar */}
       <div style={styles.toolbar}>
         <div style={styles.searchWrap}>
-          <Search size={16} color="#6B4F2A" />
+          <Search size={16} color="#FF922B" />
           <input
             style={styles.searchInput}
             placeholder="Buscar por nombre o variedad…"
@@ -1037,7 +1037,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
       {/* Estado vacío global */}
       {loaded && plants.length === 0 && (
         <div style={styles.empty}>
-          <Sprout size={30} color="#A85C32" strokeWidth={1.5} />
+          <Sprout size={30} color="#2F9E44" strokeWidth={1.5} />
           <p style={styles.emptyTitle}>Tu vivero está vacío</p>
           <p style={styles.emptyText}>Sube una foto para identificar tu primera planta, o agrégala a mano.</p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14 }}>
@@ -1050,7 +1050,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
       {/* Sin resultados */}
       {loaded && plants.length > 0 && filtered.length === 0 && (
         <div style={styles.empty}>
-          <Sprout size={30} color="#A85C32" strokeWidth={1.5} />
+          <Sprout size={30} color="#2F9E44" strokeWidth={1.5} />
           <p style={styles.emptyTitle}>Sin resultados</p>
           <p style={styles.emptyText}>Prueba con otro nombre o quita el filtro de área.</p>
         </div>
@@ -1099,8 +1099,8 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
 
                           {risk && (
                             <div style={styles.riskBox}>
-                              <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A3B1D" }}>{risk.riesgo}</div>
-                              <div style={{ fontSize: 11.5, color: "#5C4A2E", marginTop: 2 }}>{risk.sugerencia}</div>
+                              <div style={{ fontSize: 11.5, fontWeight: 600, color: "#E03131" }}>{risk.riesgo}</div>
+                              <div style={{ fontSize: 11.5, color: "#52796F", marginTop: 2 }}>{risk.sugerencia}</div>
                             </div>
                           )}
 
@@ -1133,7 +1133,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
             )}
 
             {form.imagen && (
-              <img src={form.imagen} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 8, marginTop: 10 }} />
+              <img src={form.imagen} alt="" style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 14, marginTop: 10 }} />
             )}
 
             <div style={styles.formSection}><Leaf size={12} /> Identidad</div>
@@ -1236,9 +1236,9 @@ function DetailModal({ plant, info, risk, onClose, onEdit, onLog }) {
         {plant.variedad && <p style={styles.cardVariety}>{plant.variedad}</p>}
 
         {plant.imagen ? (
-          <img src={plant.imagen} alt={plant.nombre} style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8, marginTop: 4 }} />
+          <img src={plant.imagen} alt={plant.nombre} style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 14, marginTop: 4 }} />
         ) : (
-          <div style={{ width: "100%", height: 180, borderRadius: 8, marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", background: info.color + "22" }}>
+          <div style={{ width: "100%", height: 180, borderRadius: 14, marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", background: info.color + "22" }}>
             <Leaf size={32} color={info.color} strokeWidth={1.5} />
           </div>
         )}
@@ -1247,19 +1247,19 @@ function DetailModal({ plant, info, risk, onClose, onEdit, onLog }) {
 
         {risk && (
           <div style={styles.riskBox}>
-            <div style={{ fontWeight: 600, color: "#8A3B1D" }}>{risk.riesgo}</div>
-            <div style={{ color: "#5C4A2E", marginTop: 2 }}>{risk.sugerencia}</div>
+            <div style={{ fontWeight: 600, color: "#E03131" }}>{risk.riesgo}</div>
+            <div style={{ color: "#52796F", marginTop: 2 }}>{risk.sugerencia}</div>
           </div>
         )}
 
         {(plant.fechaLlegada || plant.situacionLlegada) && (
           <div style={styles.arrivalBox}>
-            <Home size={13} color="#6B4F2A" />
+            <Home size={13} color="#FF922B" />
             <div>
               <div style={{ fontWeight: 600, fontSize: 12.5 }}>
                 {plant.fechaLlegada ? `Llegó el ${fmtFecha(plant.fechaLlegada)}` : "Llegada registrada"}
               </div>
-              {plant.situacionLlegada && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{plant.situacionLlegada}</div>}
+              {plant.situacionLlegada && <div style={{ fontSize: 12, color: "#52796F" }}>{plant.situacionLlegada}</div>}
             </div>
           </div>
         )}
@@ -1275,12 +1275,12 @@ function DetailModal({ plant, info, risk, onClose, onEdit, onLog }) {
           </div>
         )}
 
-        {plant.cuidados && <p style={styles.cardRow}><Droplet size={12} color="#6B4F2A" /> {plant.cuidados}</p>}
-        {plant.climaPreferido && <p style={styles.cardRow}><Sun size={12} color="#6B4F2A" /> {plant.climaPreferido}</p>}
-        {plant.adaptacion && <p style={styles.cardRow}><Compass size={12} color="#6B4F2A" /> {plant.adaptacion}</p>}
+        {plant.cuidados && <p style={styles.cardRow}><Droplet size={12} color="#FF922B" /> {plant.cuidados}</p>}
+        {plant.climaPreferido && <p style={styles.cardRow}><Sun size={12} color="#FF922B" /> {plant.climaPreferido}</p>}
+        {plant.adaptacion && <p style={styles.cardRow}><Compass size={12} color="#FF922B" /> {plant.adaptacion}</p>}
         {plant.notas && <p style={styles.cardNotes}>{plant.notas}</p>}
         {ult && (
-          <p style={styles.cardRow}><Clock size={12} color="#6B4F2A" /> {eventInfo(ult.tipo).label} · {fmtFecha(ult.fecha)}</p>
+          <p style={styles.cardRow}><Clock size={12} color="#FF922B" /> {eventInfo(ult.tipo).label} · {fmtFecha(ult.fecha)}</p>
         )}
 
         <div style={styles.modalActions}>
@@ -1323,7 +1323,7 @@ function LoginScreen({ onSuccess }) {
   return (
     <div style={styles.loginPage}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600&family=Work+Sans:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600&family=Work+Sans:wght@400;500;600&family=Fredoka:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
         body { margin: 0; }
         input { font-family: 'Work Sans', sans-serif; }
@@ -1369,111 +1369,111 @@ export default function App() {
 }
 
 const styles = {
-  page: { minHeight: "100vh", background: "#F1E9D2", color: "#211C14", fontFamily: "'Work Sans', sans-serif", padding: "28px 20px 60px" },
+  page: { minHeight: "100vh", background: "#F3FBF0", color: "#1B4332", fontFamily: "'Work Sans', sans-serif", padding: "28px 20px 60px" },
   header: { maxWidth: 980, margin: "0 auto 24px" },
   headerTop: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 },
-  eyebrow: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "#A85C32", marginBottom: 8 },
-  h1: { fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: "clamp(36px, 6vw, 56px)", margin: 0, lineHeight: 1 },
-  sub: { marginTop: 10, maxWidth: 480, color: "#5C4A2E", fontSize: 14.5, lineHeight: 1.5 },
-  statBox: { display: "flex", flexDirection: "column", alignItems: "flex-end", borderLeft: "2px solid #211C14", paddingLeft: 14 },
-  statNum: { fontFamily: "'Fraunces', serif", fontSize: 40, fontWeight: 600, lineHeight: 1 },
-  statLabel: { fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#6B4F2A", textTransform: "uppercase", letterSpacing: "0.05em" },
-  soilProfile: { marginTop: 26, background: "#E8DFC8", border: "1px solid #D8C9A0", borderRadius: 10, padding: "16px 18px" },
-  soilProfileLabel: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#6B4F2A", textTransform: "uppercase", letterSpacing: "0.04em" },
+  eyebrow: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "#2F9E44", marginBottom: 8 },
+  h1: { fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: "clamp(36px, 6vw, 56px)", margin: 0, lineHeight: 1 },
+  sub: { marginTop: 10, maxWidth: 480, color: "#52796F", fontSize: 14.5, lineHeight: 1.5 },
+  statBox: { display: "flex", flexDirection: "column", alignItems: "flex-end", borderLeft: "2px solid #1B4332", paddingLeft: 14 },
+  statNum: { fontFamily: "'Fredoka', sans-serif", fontSize: 40, fontWeight: 600, lineHeight: 1 },
+  statLabel: { fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#FF922B", textTransform: "uppercase", letterSpacing: "0.05em" },
+  soilProfile: { marginTop: 26, background: "#EAF7EC", border: "1px solid #BFE8C4", borderRadius: 16, padding: "16px 18px" },
+  soilProfileLabel: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#FF922B", textTransform: "uppercase", letterSpacing: "0.04em" },
   soilRows: { display: "flex", flexDirection: "column", gap: 8, marginTop: 12 },
   soilRow: { display: "grid", gridTemplateColumns: "150px 1fr", alignItems: "center", gap: 12 },
-  soilRowLabel: { fontSize: 12.5, color: "#3C3120" },
+  soilRowLabel: { fontSize: 12.5, color: "#2D6A4F" },
   statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 18, marginTop: 12 },
   statsCol: {},
-  statsColTitle: { display: "flex", alignItems: "center", gap: 5, fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.04em", color: "#8A7857", marginBottom: 8 },
+  statsColTitle: { display: "flex", alignItems: "center", gap: 5, fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.04em", color: "#5B8064", marginBottom: 8 },
   statsBigRow: { display: "flex", alignItems: "baseline", gap: 7, marginBottom: 8 },
-  statsBigNum: { fontFamily: "'Fraunces', serif", fontSize: 30, fontWeight: 600, color: "#211C14", lineHeight: 1 },
-  statsBigLabel: { fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#6B4F2A" },
+  statsBigNum: { fontFamily: "'Fredoka', sans-serif", fontSize: 30, fontWeight: 600, color: "#1B4332", lineHeight: 1 },
+  statsBigLabel: { fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#FF922B" },
   badgeWrap: { display: "flex", flexWrap: "wrap", gap: 6 },
-  typeBadge: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, background: "#fff", border: "1px solid", borderRadius: 20, padding: "4px 10px", color: "#3C3120" },
-  climaBadge: { fontSize: 12, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 20, padding: "4px 10px", color: "#3C3120" },
+  typeBadge: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, background: "#fff", border: "1px solid", borderRadius: 26, padding: "4px 10px", color: "#2D6A4F" },
+  climaBadge: { fontSize: 12, background: "#fff", border: "1px solid #BFE8C4", borderRadius: 26, padding: "4px 10px", color: "#2D6A4F" },
   incidentList: { display: "flex", flexDirection: "column", gap: 6 },
-  incidentItem: { display: "flex", alignItems: "center", gap: 6, background: "#F8ECE0", border: "1px solid #E7C4A5", borderRadius: 8, padding: "6px 10px", fontSize: 12.5, color: "#5C4A2E" },
-  cancelBtnSmall: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#6B4F2A", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 14px", fontSize: 13 },
-  climatePanel: { marginTop: 14, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 10, padding: "16px 18px" },
+  incidentItem: { display: "flex", alignItems: "center", gap: 6, background: "#FFF7DB", border: "1px solid #FFE08A", borderRadius: 14, padding: "6px 10px", fontSize: 12.5, color: "#52796F" },
+  cancelBtnSmall: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#FF922B", border: "1px solid #BFE8C4", borderRadius: 14, padding: "10px 14px", fontSize: 13 },
+  climatePanel: { marginTop: 14, background: "#fff", border: "1px solid #BFE8C4", borderRadius: 16, padding: "16px 18px" },
   climateHeaderRow: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 },
-  refreshBtn: { display: "flex", alignItems: "center", gap: 6, background: "#211C14", color: "#F1E9D2", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 12, fontWeight: 600 },
-  locationInput: { border: "1px solid #D8C9A0", borderRadius: 20, padding: "6px 12px", fontSize: 12.5, background: "#fff", color: "#211C14", minWidth: 160 },
-  climateEmpty: { fontSize: 12.5, color: "#6B4F2A", marginTop: 10, marginBottom: 0 },
-  climateError: { fontSize: 12.5, color: "#8A3B1D", marginTop: 10, marginBottom: 0 },
+  refreshBtn: { display: "flex", alignItems: "center", gap: 6, background: "#1B4332", color: "#F3FBF0", border: "none", borderRadius: 26, padding: "6px 12px", fontSize: 12, fontWeight: 600 },
+  locationInput: { border: "1px solid #BFE8C4", borderRadius: 26, padding: "6px 12px", fontSize: 12.5, background: "#fff", color: "#1B4332", minWidth: 160 },
+  climateEmpty: { fontSize: 12.5, color: "#FF922B", marginTop: 10, marginBottom: 0 },
+  climateError: { fontSize: 12.5, color: "#E03131", marginTop: 10, marginBottom: 0 },
   climateSummaryRow: { display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 },
-  seasonBadge: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", background: "#E8DFC8", color: "#3C3120", padding: "4px 9px", borderRadius: 20, flexShrink: 0 },
-  climateSummaryText: { fontSize: 13, color: "#3C3120", margin: 0, lineHeight: 1.45 },
-  climateAlertGeneral: { display: "flex", alignItems: "center", gap: 6, background: "#F3D8C8", color: "#8A3B1D", fontSize: 12.5, padding: "8px 10px", borderRadius: 6, marginTop: 10 },
+  seasonBadge: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", background: "#EAF7EC", color: "#2D6A4F", padding: "4px 9px", borderRadius: 26, flexShrink: 0 },
+  climateSummaryText: { fontSize: 13, color: "#2D6A4F", margin: 0, lineHeight: 1.45 },
+  climateAlertGeneral: { display: "flex", alignItems: "center", gap: 6, background: "#FFE8D6", color: "#E03131", fontSize: 12.5, padding: "8px 10px", borderRadius: 10, marginTop: 10 },
   riskList: { display: "flex", flexDirection: "column", gap: 8, marginTop: 12 },
-  riskItem: { background: "#F8F1E0", border: "1px solid #E4DAC0", borderRadius: 8, padding: "8px 10px" },
-  climateChecked: { fontSize: 10.5, color: "#8A7857", marginTop: 12, marginBottom: 0 },
+  riskItem: { background: "#FFF3BF", border: "1px solid #FFE066", borderRadius: 14, padding: "8px 10px" },
+  climateChecked: { fontSize: 10.5, color: "#5B8064", marginTop: 12, marginBottom: 0 },
   toolbar: { maxWidth: 980, margin: "0 auto 20px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" },
-  searchWrap: { display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 8, padding: "9px 12px", flex: "1 1 220px" },
-  searchInput: { border: "none", outline: "none", fontSize: 14, flex: 1, background: "transparent", color: "#211C14" },
-  select: { border: "1px solid #D8C9A0", borderRadius: 8, padding: "9px 12px", fontSize: 14, background: "#fff", color: "#211C14" },
-  addBtn: { display: "flex", alignItems: "center", gap: 6, background: "#2F5233", color: "#F1E9D2", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
-  addBtnGhostSmall: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#211C14", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600 },
-  addBtnGhost: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#211C14", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
-  errorBanner: { maxWidth: 980, margin: "0 auto 16px", background: "#F3D8C8", color: "#6B2E12", padding: "10px 14px", borderRadius: 8, fontSize: 13.5 },
-  successBanner: { maxWidth: 980, margin: "0 auto 16px", background: "#DCEAD8", color: "#2F5233", padding: "10px 14px", borderRadius: 8, fontSize: 13.5 },
-  logoutBtn: { background: "transparent", border: "1px solid #D8C9A0", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, color: "#211C14", fontWeight: 600, whiteSpace: "nowrap" },
-  empty: { maxWidth: 980, margin: "40px auto", textAlign: "center", padding: "40px 20px", border: "1px dashed #D8C9A0", borderRadius: 12 },
-  emptyTitle: { fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, margin: "12px 0 4px" },
-  emptyText: { fontSize: 13.5, color: "#6B4F2A", margin: 0 },
+  searchWrap: { display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #BFE8C4", borderRadius: 14, padding: "9px 12px", flex: "1 1 220px" },
+  searchInput: { border: "none", outline: "none", fontSize: 14, flex: 1, background: "transparent", color: "#1B4332" },
+  select: { border: "1px solid #BFE8C4", borderRadius: 14, padding: "9px 12px", fontSize: 14, background: "#fff", color: "#1B4332" },
+  addBtn: { display: "flex", alignItems: "center", gap: 6, background: "#12B886", color: "#F3FBF0", border: "none", borderRadius: 14, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
+  addBtnGhostSmall: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#1B4332", border: "1px solid #BFE8C4", borderRadius: 14, padding: "10px 14px", fontSize: 14, fontWeight: 600 },
+  addBtnGhost: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#1B4332", border: "1px solid #BFE8C4", borderRadius: 14, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
+  errorBanner: { maxWidth: 980, margin: "0 auto 16px", background: "#FFE8D6", color: "#8A4B08", padding: "10px 14px", borderRadius: 14, fontSize: 13.5 },
+  successBanner: { maxWidth: 980, margin: "0 auto 16px", background: "#EAF9E8", color: "#12B886", padding: "10px 14px", borderRadius: 14, fontSize: 13.5 },
+  logoutBtn: { background: "transparent", border: "1px solid #BFE8C4", borderRadius: 14, padding: "8px 14px", fontSize: 12.5, color: "#1B4332", fontWeight: 600, whiteSpace: "nowrap" },
+  empty: { maxWidth: 980, margin: "40px auto", textAlign: "center", padding: "40px 20px", border: "1px dashed #BFE8C4", borderRadius: 18 },
+  emptyTitle: { fontFamily: "'Fredoka', sans-serif", fontSize: 20, fontWeight: 600, margin: "12px 0 4px" },
+  emptyText: { fontSize: 13.5, color: "#FF922B", margin: 0 },
   areas: { maxWidth: 980, margin: "0 auto", display: "flex", flexDirection: "column", gap: 30 },
   area: {},
   areaHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 },
   areaDot: { width: 10, height: 10, borderRadius: "50%", flexShrink: 0 },
-  areaTitle: { fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, margin: 0 },
-  areaCount: { fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#8A7857" },
-  areaEmpty: { fontSize: 13, color: "#8A7857", fontStyle: "italic", margin: 0 },
+  areaTitle: { fontFamily: "'Fredoka', sans-serif", fontSize: 22, fontWeight: 600, margin: 0 },
+  areaCount: { fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#5B8064" },
+  areaEmpty: { fontSize: 13, color: "#5B8064", fontStyle: "italic", margin: 0 },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 18 },
-  card: { background: "#fff", borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column", position: "relative", boxShadow: "0 1px 4px rgba(33,28,20,0.10)" },
+  card: { background: "#fff", borderRadius: 22, overflow: "hidden", display: "flex", flexDirection: "column", position: "relative", boxShadow: "0 1px 4px rgba(27,67,50,0.10)" },
   cardStripe: { height: 4, width: "100%" },
-  cardAtRisk: { border: "1px solid #C97B4A", boxShadow: "0 0 0 1px #C97B4A22" },
+  cardAtRisk: { border: "1px solid #F76707", boxShadow: "0 0 0 1px #C97B4A22" },
   cardImageWrap: { position: "relative", height: 170, cursor: "pointer" },
   cardImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
   cardImagePlaceholder: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" },
-  cardImageOverlay: { position: "absolute", left: 0, right: 0, bottom: 0, padding: "30px 14px 12px", background: "linear-gradient(to top, rgba(33,28,20,0.88), rgba(33,28,20,0))" },
-  cardNameOnImage: { fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 600, margin: 0, color: "#F8F1E0" },
-  cardVarietyOnImage: { fontStyle: "italic", fontSize: 11.5, color: "#E8DFC8", margin: "2px 0 0" },
-  aiTag: { position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 4, background: "#211C14", color: "#F1E9D2", fontSize: 10, fontWeight: 600, padding: "4px 8px", borderRadius: 20, fontFamily: "'Space Mono', monospace" },
-  riskTag: { position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 4, background: "#8A3B1D", color: "#F8ECE0", fontSize: 10, fontWeight: 600, padding: "4px 8px", borderRadius: 20, fontFamily: "'Space Mono', monospace" },
-  riskBox: { background: "#F8ECE0", border: "1px solid #E7C4A5", borderRadius: 6, padding: "7px 9px", margin: "6px 0 10px" },
+  cardImageOverlay: { position: "absolute", left: 0, right: 0, bottom: 0, padding: "30px 14px 12px", background: "linear-gradient(to top, rgba(27,67,50,0.88), rgba(27,67,50,0))" },
+  cardNameOnImage: { fontFamily: "'Fredoka', sans-serif", fontSize: 18, fontWeight: 600, margin: 0, color: "#FFF3BF" },
+  cardVarietyOnImage: { fontStyle: "italic", fontSize: 11.5, color: "#EAF7EC", margin: "2px 0 0" },
+  aiTag: { position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 4, background: "#1B4332", color: "#F3FBF0", fontSize: 10, fontWeight: 600, padding: "4px 8px", borderRadius: 26, fontFamily: "'Space Mono', monospace" },
+  riskTag: { position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 4, background: "#E03131", color: "#FFF7DB", fontSize: 10, fontWeight: 600, padding: "4px 8px", borderRadius: 26, fontFamily: "'Space Mono', monospace" },
+  riskBox: { background: "#FFF7DB", border: "1px solid #FFE08A", borderRadius: 10, padding: "7px 9px", margin: "6px 0 10px" },
   cardBody: { padding: "10px 16px 6px", flex: 1, cursor: "pointer" },
-  cardName: { fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, margin: 0 },
-  cardVariety: { fontStyle: "italic", fontSize: 12.5, color: "#6B4F2A", margin: "2px 0 8px" },
-  cardMeta: { display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: "#8A7857", margin: "0 0 10px" },
-  cardSubstrateLabel: { fontFamily: "'Space Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8A7857", marginBottom: 4 },
-  cardText: { fontSize: 12, lineHeight: 1.45, color: "#3C3120", marginTop: 8 },
+  cardName: { fontFamily: "'Fredoka', sans-serif", fontSize: 19, fontWeight: 600, margin: 0 },
+  cardVariety: { fontStyle: "italic", fontSize: 12.5, color: "#FF922B", margin: "2px 0 8px" },
+  cardMeta: { display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: "#5B8064", margin: "0 0 10px" },
+  cardSubstrateLabel: { fontFamily: "'Space Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#5B8064", marginBottom: 4 },
+  cardText: { fontSize: 12, lineHeight: 1.45, color: "#2D6A4F", marginTop: 8 },
   materialesRow: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 },
-  materialChip: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, background: "#E8DFC8", color: "#3C3120", padding: "3px 8px", borderRadius: 20 },
-  cardRow: { display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11.5, lineHeight: 1.4, color: "#3C3120", marginTop: 6 },
-  cardNotes: { fontSize: 11.5, color: "#8A7857", borderTop: "1px dashed #E4DAC0", paddingTop: 8, marginTop: 8 },
-  cardActions: { display: "flex", borderTop: "1px solid #EFE8D4" },
-  iconBtn: { flex: 1, background: "transparent", border: "none", padding: "9px 0", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B4F2A" },
-  overlay: { position: "fixed", inset: 0, background: "rgba(33,28,20,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 50 },
-  modal: { background: "#F1E9D2", borderRadius: 14, padding: 22, width: "100%", maxWidth: 480, maxHeight: "88vh", overflowY: "auto", display: "flex", flexDirection: "column" },
+  materialChip: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, background: "#EAF7EC", color: "#2D6A4F", padding: "3px 8px", borderRadius: 26 },
+  cardRow: { display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11.5, lineHeight: 1.4, color: "#2D6A4F", marginTop: 6 },
+  cardNotes: { fontSize: 11.5, color: "#5B8064", borderTop: "1px dashed #FFE066", paddingTop: 8, marginTop: 8 },
+  cardActions: { display: "flex", borderTop: "1px solid #D8F3DC" },
+  iconBtn: { flex: 1, background: "transparent", border: "none", padding: "9px 0", display: "flex", alignItems: "center", justifyContent: "center", color: "#FF922B" },
+  overlay: { position: "fixed", inset: 0, background: "rgba(27,67,50,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 50 },
+  modal: { background: "#F3FBF0", borderRadius: 20, padding: 22, width: "100%", maxWidth: 480, maxHeight: "88vh", overflowY: "auto", display: "flex", flexDirection: "column" },
   modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
-  modalTitle: { fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 600, margin: 0 },
-  closeBtn: { background: "transparent", border: "none", color: "#211C14" },
-  aiBanner: { display: "flex", alignItems: "center", gap: 6, background: "#E8DFC8", color: "#3C3120", fontSize: 12, padding: "7px 10px", borderRadius: 6, marginTop: 6 },
-  arrivalBox: { display: "flex", gap: 8, background: "#E8DFC8", borderRadius: 8, padding: "9px 11px", marginTop: 10 },
-  label: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6B4F2A", marginTop: 12, marginBottom: 5 },
-  formSection: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "#A85C32", marginTop: 20, paddingTop: 14, borderTop: "1px solid #E4DAC0" },
+  modalTitle: { fontFamily: "'Fredoka', sans-serif", fontSize: 20, fontWeight: 600, margin: 0 },
+  closeBtn: { background: "transparent", border: "none", color: "#1B4332" },
+  aiBanner: { display: "flex", alignItems: "center", gap: 6, background: "#EAF7EC", color: "#2D6A4F", fontSize: 12, padding: "7px 10px", borderRadius: 10, marginTop: 6 },
+  arrivalBox: { display: "flex", gap: 8, background: "#EAF7EC", borderRadius: 14, padding: "9px 11px", marginTop: 10 },
+  label: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "#FF922B", marginTop: 12, marginBottom: 5 },
+  formSection: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "#2F9E44", marginTop: 20, paddingTop: 14, borderTop: "1px solid #FFE066" },
   formRow2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
-  input: { width: "100%", border: "1px solid #D8C9A0", borderRadius: 8, padding: "9px 11px", fontSize: 13.5, background: "#fff", color: "#211C14", outline: "none" },
+  input: { width: "100%", border: "1px solid #BFE8C4", borderRadius: 14, padding: "9px 11px", fontSize: 13.5, background: "#fff", color: "#1B4332", outline: "none" },
   modalActions: { display: "flex", gap: 10, marginTop: 20 },
-  cancelBtn: { flex: 1, background: "transparent", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 0", fontSize: 13.5, color: "#211C14" },
-  saveBtn: { flex: 1, background: "#2F5233", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 13.5, fontWeight: 600, color: "#F1E9D2" },
-  logForm: { marginTop: 14, borderTop: "1px solid #E4DAC0", paddingTop: 14 },
+  cancelBtn: { flex: 1, background: "transparent", border: "1px solid #BFE8C4", borderRadius: 14, padding: "10px 0", fontSize: 13.5, color: "#1B4332" },
+  saveBtn: { flex: 1, background: "#12B886", border: "none", borderRadius: 14, padding: "10px 0", fontSize: 13.5, fontWeight: 600, color: "#F3FBF0" },
+  logForm: { marginTop: 14, borderTop: "1px solid #FFE066", paddingTop: 14 },
   logList: { display: "flex", flexDirection: "column", gap: 8, marginTop: 16 },
-  logItem: { display: "flex", gap: 8, background: "#fff", border: "1px solid #E4DAC0", borderRadius: 8, padding: "8px 10px", alignItems: "flex-start" },
-  logDelete: { background: "transparent", border: "none", color: "#8A7857", padding: 4 },
-  loginPage: { minHeight: "100vh", background: "#F1E9D2", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 },
-  loginCard: { background: "#fff", border: "1px solid #D8C9A0", borderRadius: 14, padding: 28, width: "100%", maxWidth: 360, fontFamily: "'Work Sans', sans-serif" },
-  loginEyebrow: { fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "#A85C32", marginBottom: 6 },
-  loginTitle: { fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 34, margin: 0, color: "#211C14" },
-  loginSub: { fontSize: 13.5, color: "#6B4F2A", marginTop: 8, marginBottom: 4 },
+  logItem: { display: "flex", gap: 8, background: "#fff", border: "1px solid #FFE066", borderRadius: 14, padding: "8px 10px", alignItems: "flex-start" },
+  logDelete: { background: "transparent", border: "none", color: "#5B8064", padding: 4 },
+  loginPage: { minHeight: "100vh", background: "#F3FBF0", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 },
+  loginCard: { background: "#fff", border: "1px solid #BFE8C4", borderRadius: 20, padding: 28, width: "100%", maxWidth: 360, fontFamily: "'Work Sans', sans-serif" },
+  loginEyebrow: { fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "#2F9E44", marginBottom: 6 },
+  loginTitle: { fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 34, margin: 0, color: "#1B4332" },
+  loginSub: { fontSize: 13.5, color: "#FF922B", marginTop: 8, marginBottom: 4 },
 };
