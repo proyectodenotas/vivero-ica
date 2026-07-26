@@ -60,31 +60,37 @@ const CARE_INFO = {
           cuidados: "Riego escaso y espaciado (cada 2-3 semanas en verano, menos en invierno), dejando secar el sustrato por completo entre riegos. Ubicar a pleno sol. Podar solo para retirar partes danadas.",
           climaPreferido: "Zonas aridas y semiaridas, con suelos bien drenados y alta exposicion solar.",
           adaptacion: "Ya esta naturalmente adaptada al clima seco de Ica; evita el exceso de riego y la humedad estancada, el principal riesgo para este tipo de plantas.",
+    materiales: ["arena gruesa", "grava fina", "perlita", "tierra de hoja"],
     },
     tropical: {
           cuidados: "Riego frecuente para mantener el sustrato ligeramente humedo, sin encharcar. Luz indirecta brillante. Aumentar la humedad ambiental con nebulizaciones o bandejas con agua.",
           climaPreferido: "Climas calidos y humedos, con lluvias frecuentes y poca variacion de temperatura.",
           adaptacion: "En Ica, ubicar en zonas con sombra parcial y nebulizar las hojas regularmente para compensar la baja humedad ambiental tipica del desierto costero.",
+    materiales: ["fibra de coco", "turba", "musgo sphagnum", "corteza de pino", "perlita", "compost"],
     },
     frutal: {
           cuidados: "Riego profundo y regular, especialmente en floracion y fructificacion. Podas de formacion y sanitarias cada temporada. Fertilizar con compost o abono organico periodicamente.",
           climaPreferido: "Varia segun la especie; muchos frutales prefieren clima templado con estacion fria marcada para inducir la floracion.",
           adaptacion: "Usar mulch grueso para conservar la humedad del suelo y regar con mayor frecuencia durante el calor extremo de Ica; considerar sombra parcial en las horas de mas sol si la especie no tolera bien el calor seco.",
+    materiales: ["tierra de chacra", "compost", "arena", "mulch de corteza"],
     },
     aromatica: {
           cuidados: "Riego moderado y frecuente, evitando encharcar. Pleno sol o semisombra segun la especie. Cosechar o podar las hojas regularmente para estimular brotes nuevos.",
           climaPreferido: "La mayoria son de origen mediterraneo, adaptadas a climas templados y secos con buena exposicion solar.",
           adaptacion: "Se adaptan bien al clima arido de Ica; conviene regar en las horas mas frescas del dia para evitar el estres hidrico por el calor.",
+    materiales: ["tierra de hoja", "arena gruesa", "compost", "perlita"],
     },
     ornamental: {
           cuidados: "Riego moderado, dejando secar la superficie del sustrato entre riegos. Luz indirecta, evitando el sol directo intenso. Limpiar las hojas periodicamente para favorecer la fotosintesis.",
           climaPreferido: "Ambientes interiores estables, con temperatura templada y humedad moderada.",
           adaptacion: "Protegerla del sol directo y del aire muy seco tipico de Ica; ubicarla lejos de corrientes de aire caliente y considerar aumentar la humedad ambiental a su alrededor.",
+    materiales: ["tierra negra", "compost", "perlita", "corteza de pino", "musgo"],
     },
     otra: {
           cuidados: "Revisa las necesidades especificas de riego, luz y poda segun la especie identificada.",
           climaPreferido: "Variable segun la especie.",
           adaptacion: "Ajusta el cuidado observando como responde la planta al clima arido y seco de Ica.",
+    materiales: ["compost", "arena", "sustrato balanceado"],
     },
 };
 
@@ -146,6 +152,7 @@ const eventInfo = (id) => EVENT_TYPES.find((e) => e.id === id) || EVENT_TYPES[EV
 const PLANTS_KEY = "ica-plant-inventory";
 const TIPOS_KEY = "ica-plant-tipos";
 const CLIMATE_KEY = "ica-plant-climate";
+const LOCATION_KEY = "ica-plant-location";
 
 const emptyForm = {
   id: null,
@@ -153,6 +160,7 @@ const emptyForm = {
   variedad: "",
   tipo: "cactus",
   sustrato: BASE_TIPOS[0].sustrato,
+  materiales: (CARE_INFO.cactus.materiales || []).join(", "),
   cuidados: "",
   climaPreferido: "",
   adaptacion: "",
@@ -326,6 +334,7 @@ function PlantInventory({ onLogout }) {
   const [climate, setClimate] = useState(null);
   const [climateLoading, setClimateLoading] = useState(false);
   const [climateError, setClimateError] = useState("");
+  const [ubicacionClima, setUbicacionClima] = useState("Ica, Perú");
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -341,6 +350,10 @@ function PlantInventory({ onLogout }) {
       try {
         const resClimate = await storage.get(CLIMATE_KEY);
         if (resClimate && resClimate.value) setClimate(JSON.parse(resClimate.value));
+      } catch (e) {}
+      try {
+        const resLocation = await storage.get(LOCATION_KEY);
+        if (resLocation && resLocation.value) setUbicacionClima(resLocation.value);
       } catch (e) {}
       setLoaded(true);
     })();
@@ -364,8 +377,24 @@ function PlantInventory({ onLogout }) {
     }
   };
 
+  const persistUbicacion = async (next) => {
+    setUbicacionClima(next);
+    try {
+      await storage.set(LOCATION_KEY, next);
+    } catch (e) {}
+  };
+
   const openNew = () => {
-    setForm({ ...emptyForm, tipo: tipos[0]?.id || "otra", sustrato: tipos[0]?.sustrato || "" });
+    const firstTipo = tipos[0]?.id || "otra";
+    const care = CARE_INFO[firstTipo] || CARE_INFO.otra;
+    setForm({
+      ...emptyForm,
+      tipo: firstTipo,
+      sustrato: tipos[0]?.sustrato || "",
+      climaPreferido: care.climaPreferido,
+      adaptacion: care.adaptacion,
+      materiales: (care.materiales || []).join(", "),
+    });
     setFormOpen(true);
   };
 
@@ -381,11 +410,18 @@ function PlantInventory({ onLogout }) {
 
   const handleTipoChange = (tipoId) => {
     const info = tipoInfo(tipos, tipoId);
-    setForm((f) => ({
-      ...f,
-      tipo: tipoId,
-      sustrato: f.id || f.aiIdentified ? f.sustrato : info.sustrato,
-    }));
+    const care = CARE_INFO[tipoId] || CARE_INFO.otra;
+    setForm((f) => {
+      const keepCustom = !!f.id || f.aiIdentified;
+      return {
+        ...f,
+        tipo: tipoId,
+        sustrato: keepCustom ? f.sustrato : info.sustrato,
+        climaPreferido: keepCustom ? f.climaPreferido : care.climaPreferido,
+        adaptacion: keepCustom ? f.adaptacion : care.adaptacion,
+        materiales: keepCustom ? f.materiales : (care.materiales || []).join(", "),
+      };
+    });
   };
 
   const handleSave = (e) => {
@@ -469,7 +505,8 @@ function PlantInventory({ onLogout }) {
                                   variedad: data.scientificName || "",
                                   tipo: info.id,
                                   sustrato: info.sustrato,
-                                  cuidados: care.cuidados,
+                                  materiales: (care.materiales || []).join(", "),
+          cuidados: care.cuidados,
                                   climaPreferido: care.climaPreferido,
                                   adaptacion: care.adaptacion,
                                   imagen: compressed,
@@ -494,25 +531,30 @@ function PlantInventory({ onLogout }) {
       const todayStr = new Date().toLocaleDateString("es-PE", {
         weekday: "long", year: "numeric", month: "long", day: "numeric",
       });
+      const lugar = ubicacionClima && ubicacionClima.trim() ? ubicacionClima.trim() : "Ica, Perú";
       const listStr = plants
         .map((p) => {
           const t = tipoInfo(tipos, p.tipo);
-          return `id:${p.id} — ${p.nombre}${p.variedad ? " (" + p.variedad + ")" : ""} — área: ${t.label}${p.climaPreferido ? " — clima natural: " + p.climaPreferido : ""}`;
+          const partes = [`id:${p.id} — ${p.nombre}${p.variedad ? " (" + p.variedad + ")" : ""} — área: ${t.label}`];
+          if (p.climaPreferido) partes.push(`clima natural: ${p.climaPreferido}`);
+          if (p.ubicacion) partes.push(`ubicación actual: ${p.ubicacion}`);
+          if (p.adaptacion) partes.push(`medidas de adaptación ya tomadas: ${p.adaptacion}`);
+          return partes.join(" — ");
         })
         .join("\n");
 
-      const prompt = `Hoy es ${todayStr}. Ubicación: Ica, Perú (costa desértica del hemisferio sur).
-Busca en internet el pronóstico del clima de hoy para Ica, Perú: temperatura máxima, mínima y humedad aproximada. Determina también la estación del año actual en el hemisferio sur.
+      const prompt = `Hoy es ${todayStr}. Ubicación: ${lugar}.
+Busca en internet el pronóstico del clima de hoy para esa ubicación: temperatura máxima, mínima y humedad aproximada. Determina también la estación del año actual según el hemisferio correspondiente a esa ubicación.
 
-Luego revisa esta lista de plantas de un vivero doméstico:
+Luego revisa esta lista de plantas de un vivero doméstico, algunas de las cuales ya podrían estar acondicionadas o ubicadas en un lugar protegido:
 ${listStr}
 
-Evalúa si el clima de hoy (incluyendo posibles contrastes entre día y noche, o entre la estación esperada y el clima real, por ejemplo frío o calor fuera de lo normal para la temporada) puede afectar a alguna de estas plantas, y qué debería hacer la persona para protegerlas.
+Evalúa si el clima de hoy (incluyendo posibles contrastes entre día y noche, o entre la estación esperada y el clima real, por ejemplo frío o calor fuera de lo normal para la temporada) puede afectar a alguna de estas plantas — ten en cuenta su ubicación actual y las medidas de adaptación ya tomadas antes de marcarla en riesgo — y qué debería hacer la persona para protegerlas.
 
 Responde con un objeto JSON válido (puedes explicar tu búsqueda antes si quieres, pero el JSON debe aparecer completo y una sola vez, al final), con este formato exacto:
 {
-"resumen_clima": "resumen breve del clima de hoy en Ica (máx 2 frases)",
-"estacion": "estación actual en Ica, ej: invierno",
+"resumen_clima": "resumen breve del clima de hoy en esa ubicación (máx 2 frases)",
+"estacion": "estación actual, ej: invierno",
 "alerta_general": "frase breve si hay algo climático notable hoy (contrastes, calor, frío, humedad); cadena vacía si no hay nada relevante",
 "plantas_en_riesgo": [
 {"id": "el id exacto de la planta tal como aparece en la lista", "nombre": "nombre de la planta", "riesgo": "qué le puede afectar hoy (máx 1-2 frases)", "sugerencia": "qué hacer para protegerla (máx 1-2 frases)"}
@@ -531,11 +573,11 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
         }),
       });
       const data = await response.json();
-      const text = (data.content || []).map((b) => b.text || "").join("\n");
-      const firstBrace = text.indexOf("{");
-      const lastBrace = text.lastIndexOf("}");
+      const respText = (data.content || []).map((b) => b.text || "").join("\n");
+      const firstBrace = respText.indexOf("{");
+      const lastBrace = respText.lastIndexOf("}");
       if (firstBrace === -1 || lastBrace === -1) throw new Error("sin JSON");
-      const result = JSON.parse(text.slice(firstBrace, lastBrace + 1));
+      const result = JSON.parse(respText.slice(firstBrace, lastBrace + 1));
       const climateObj = { ...result, checkedAt: new Date().toISOString() };
       setClimate(climateObj);
       try {
@@ -633,17 +675,27 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
               <CloudSun size={14} strokeWidth={2.5} />
               Clima y alertas de hoy
             </div>
-            <button style={styles.refreshBtn} onClick={checkClimate} disabled={climateLoading}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <input
+            style={styles.locationInput}
+            value={ubicacionClima}
+            onChange={(e) => setUbicacionClima(e.target.value)}
+            onBlur={(e) => persistUbicacion(e.target.value)}
+            placeholder="Tu ubicación, ej. Ica, Perú"
+            aria-label="Tu ubicación"
+          />
+          <button style={styles.refreshBtn} onClick={checkClimate} disabled={climateLoading}>
               {climateLoading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
               {climate ? "Actualizar" : "Consultar clima de hoy"}
             </button>
+        </div>
           </div>
 
           {climateError && <p style={styles.climateError}>{climateError}</p>}
 
           {!climate && !climateLoading && !climateError && (
             <p style={styles.climateEmpty}>
-              Consulta el clima real de hoy en Ica y revisa qué plantas de tu inventario podrían
+              Consulta el clima real de hoy en {ubicacionClima || "tu ubicación"} y revisa qué plantas de tu inventario podrían
               verse afectadas por contrastes de temperatura o humedad fuera de temporada.
             </p>
           )}
@@ -789,6 +841,14 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
                           <StrataBar estratos={info.estratos} colorBase={info.color} height={6} />
                           <p style={styles.cardText}>{p.sustrato}</p>
 
+                      {p.materiales && (
+                        <div style={styles.materialesRow}>
+                          {p.materiales.split(",").map((m) => m.trim()).filter(Boolean).map((m, i) => (
+                            <span key={i} style={styles.materialChip}>{m}</span>
+                          ))}
+                        </div>
+                      )}
+
                           {p.cuidados && <p style={styles.cardRow}><Droplet size={12} color="#6B4F2A" /> {p.cuidados}</p>}
                           {p.climaPreferido && <p style={styles.cardRow}><Sun size={12} color="#6B4F2A" /> {p.climaPreferido}</p>}
                           {p.adaptacion && <p style={styles.cardRow}><Compass size={12} color="#6B4F2A" /> {p.adaptacion}</p>}
@@ -845,6 +905,10 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
             <label style={styles.label}>Sustrato</label>
             <textarea style={{ ...styles.input, minHeight: 60, resize: "vertical" }} value={form.sustrato}
               onChange={(e) => setForm({ ...form, sustrato: e.target.value })} />
+
+                <label style={styles.label}>Materiales de sustrato sugeridos</label>
+                <input style={styles.input} placeholder="Ej. musgo, perlita, corteza de pino" value={form.materiales}
+                  onChange={(e) => setForm({ ...form, materiales: e.target.value })} />
 
             <label style={styles.label}>Cuidados</label>
             <textarea style={{ ...styles.input, minHeight: 50, resize: "vertical" }} placeholder="Riego, luz, poda…"
@@ -987,6 +1051,7 @@ const styles = {
   climatePanel: { marginTop: 14, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 10, padding: "16px 18px" },
   climateHeaderRow: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 },
   refreshBtn: { display: "flex", alignItems: "center", gap: 6, background: "#211C14", color: "#F1E9D2", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 12, fontWeight: 600 },
+  locationInput: { border: "1px solid #D8C9A0", borderRadius: 20, padding: "6px 12px", fontSize: 12.5, background: "#fff", color: "#211C14", minWidth: 160 },
   climateEmpty: { fontSize: 12.5, color: "#6B4F2A", marginTop: 10, marginBottom: 0 },
   climateError: { fontSize: 12.5, color: "#8A3B1D", marginTop: 10, marginBottom: 0 },
   climateSummaryRow: { display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 },
@@ -1031,6 +1096,8 @@ const styles = {
   cardMeta: { display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: "#8A7857", margin: "0 0 10px" },
   cardSubstrateLabel: { fontFamily: "'Space Mono', monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8A7857", marginBottom: 4 },
   cardText: { fontSize: 12, lineHeight: 1.45, color: "#3C3120", marginTop: 8 },
+  materialesRow: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  materialChip: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, background: "#E8DFC8", color: "#3C3120", padding: "3px 8px", borderRadius: 20 },
   cardRow: { display: "flex", alignItems: "flex-start", gap: 6, fontSize: 11.5, lineHeight: 1.4, color: "#3C3120", marginTop: 6 },
   cardNotes: { fontSize: 11.5, color: "#8A7857", borderTop: "1px dashed #E4DAC0", paddingTop: 8, marginTop: 8 },
   cardActions: { display: "flex", borderTop: "1px solid #EFE8D4" },
