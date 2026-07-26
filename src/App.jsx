@@ -1372,7 +1372,7 @@ export default function App() {
 }
 
 const styles = {
-  page: { minHeight: "100vh", background: "#F1E9D2", color: "#211C14", fontFamily: "'Work Sans', sans-serif", padding: "28px 20px 60px", position: "relative", overflow: "hidden" },
+  page: { minHeight: "100vh", background: "#F1E9D2", color: "#211C14", fontFamily: "'Work Sans', sans-serif", padding: "28px 20px 60px", position: "relative", overflow: "hidden", zIndex: 0 },
   watermarkTL: { position: "absolute", top: -50, right: -50, color: "#2F5233", opacity: 0.07, zIndex: -1, pointerEvents: "none", transform: "rotate(-18deg)" },
   watermarkBR: { position: "absolute", bottom: 10, left: -40, color: "#A85C32", opacity: 0.08, zIndex: -1, pointerEvents: "none", transform: "rotate(12deg)" },
   watermarkMid: { position: "absolute", top: "38%", right: -30, color: "#5C7A4A", opacity: 0.06, zIndex: -1, pointerEvents: "none", transform: "rotate(24deg)" },
