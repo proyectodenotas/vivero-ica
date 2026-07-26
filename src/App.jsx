@@ -45,6 +45,76 @@ const BASE_TIPOS = [
     estratos: [40, 30, 20, 10],
   },
   {
+    id: "palmera",
+    label: "Palmeras",
+    color: "#B08D57",
+    sustrato: "50% tierra franca, 30% arena gruesa, 20% compost — buen drenaje con retención moderada de humedad.",
+    estratos: [50, 30, 20],
+  },
+  {
+    id: "conifera",
+    label: "Coníferas y árboles",
+    color: "#4A5D3A",
+    sustrato: "60% tierra de jardín, 25% arena, 15% compost — suelo suelto y bien aireado.",
+    estratos: [60, 25, 15],
+  },
+  {
+    id: "trepadora",
+    label: "Trepadoras y enredaderas",
+    color: "#6B8A5C",
+    sustrato: "40% tierra negra, 30% compost, 20% fibra de coco, 10% perlita — soporte firme y riego constante.",
+    estratos: [40, 30, 20, 10],
+  },
+  {
+    id: "bulbosa",
+    label: "Bulbosas y rizomatosas",
+    color: "#A6763E",
+    sustrato: "50% tierra franca, 30% arena, 20% compost — drenaje rápido para evitar pudrición del bulbo.",
+    estratos: [50, 30, 20],
+  },
+  {
+    id: "orquidea",
+    label: "Orquídeas",
+    color: "#8B5E83",
+    sustrato: "70% corteza de pino, 20% musgo sphagnum, 10% carbón activado — sustrato aireado, sin tierra.",
+    estratos: [70, 20, 10],
+  },
+  {
+    id: "helecho",
+    label: "Helechos",
+    color: "#3E6B5A",
+    sustrato: "40% turba o fibra de coco, 30% tierra de hoja, 20% perlita, 10% carbón — alta retención de humedad.",
+    estratos: [40, 30, 20, 10],
+  },
+  {
+    id: "acuatica",
+    label: "Plantas acuáticas",
+    color: "#3B6B8A",
+    sustrato: "Sustrato arcilloso o grava fina en el fondo del recipiente, sumergido en agua limpia.",
+    estratos: [70, 30],
+  },
+  {
+    id: "cesped",
+    label: "Césped y cobertoras",
+    color: "#5C8A3E",
+    sustrato: "60% tierra franca, 25% arena, 15% compost — nivelado y bien compactado.",
+    estratos: [60, 25, 15],
+  },
+  {
+    id: "bonsai",
+    label: "Bonsái",
+    color: "#7A5C3E",
+    sustrato: "Akadama, arena gruesa y un poco de compost en partes iguales — excelente drenaje.",
+    estratos: [34, 33, 33],
+  },
+  {
+    id: "medicinal",
+    label: "Medicinales",
+    color: "#7A8A4A",
+    sustrato: "50% tierra de hoja, 30% compost, 20% arena — riego moderado según la especie.",
+    estratos: [50, 30, 20],
+  },
+  {
     id: "otra",
     label: "Otras",
     color: "#9C8B6E",
@@ -56,42 +126,102 @@ const BASE_IDS = BASE_TIPOS.map((t) => t.id);
 const EXTRA_COLORS = ["#7A5C3E", "#4A6B5C", "#8B5E83", "#5C6B8A", "#9B7653", "#3E6B5A", "#8A5C6B"];
 
 const CARE_INFO = {
-    cactus: {
-          cuidados: "Riego escaso y espaciado (cada 2-3 semanas en verano, menos en invierno), dejando secar el sustrato por completo entre riegos. Ubicar a pleno sol. Podar solo para retirar partes danadas.",
-          climaPreferido: "Zonas aridas y semiaridas, con suelos bien drenados y alta exposicion solar.",
-          adaptacion: "Ya esta naturalmente adaptada al clima seco de Ica; evita el exceso de riego y la humedad estancada, el principal riesgo para este tipo de plantas.",
+  cactus: {
+    cuidados: "Riego escaso y espaciado (cada 2-3 semanas en verano, menos en invierno), dejando secar el sustrato por completo entre riegos. Ubicar a pleno sol. Podar solo para retirar partes dañadas.",
+    climaPreferido: "Zonas áridas y semiáridas, con suelos bien drenados y alta exposición solar.",
+    adaptacion: "Ya está naturalmente adaptada al clima seco de Ica; evita el exceso de riego y la humedad estancada, el principal riesgo para este tipo de plantas.",
     materiales: ["arena gruesa", "grava fina", "perlita", "tierra de hoja"],
-    },
-    tropical: {
-          cuidados: "Riego frecuente para mantener el sustrato ligeramente humedo, sin encharcar. Luz indirecta brillante. Aumentar la humedad ambiental con nebulizaciones o bandejas con agua.",
-          climaPreferido: "Climas calidos y humedos, con lluvias frecuentes y poca variacion de temperatura.",
-          adaptacion: "En Ica, ubicar en zonas con sombra parcial y nebulizar las hojas regularmente para compensar la baja humedad ambiental tipica del desierto costero.",
+  },
+  tropical: {
+    cuidados: "Riego frecuente para mantener el sustrato ligeramente húmedo, sin encharcar. Luz indirecta brillante. Aumentar la humedad ambiental con nebulizaciones o bandejas con agua.",
+    climaPreferido: "Climas cálidos y húmedos, con lluvias frecuentes y poca variación de temperatura.",
+    adaptacion: "En Ica, ubicar en zonas con sombra parcial y nebulizar las hojas regularmente para compensar la baja humedad ambiental típica del desierto costero.",
     materiales: ["fibra de coco", "turba", "musgo sphagnum", "corteza de pino", "perlita", "compost"],
-    },
-    frutal: {
-          cuidados: "Riego profundo y regular, especialmente en floracion y fructificacion. Podas de formacion y sanitarias cada temporada. Fertilizar con compost o abono organico periodicamente.",
-          climaPreferido: "Varia segun la especie; muchos frutales prefieren clima templado con estacion fria marcada para inducir la floracion.",
-          adaptacion: "Usar mulch grueso para conservar la humedad del suelo y regar con mayor frecuencia durante el calor extremo de Ica; considerar sombra parcial en las horas de mas sol si la especie no tolera bien el calor seco.",
+  },
+  frutal: {
+    cuidados: "Riego profundo y regular, especialmente en floración y fructificación. Podas de formación y sanitarias cada temporada. Fertilizar con compost o abono orgánico periódicamente.",
+    climaPreferido: "Varía según la especie; muchos frutales prefieren clima templado con estación fría marcada para inducir la floración.",
+    adaptacion: "Usar mulch grueso para conservar la humedad del suelo y regar con mayor frecuencia durante el calor extremo de Ica; considerar sombra parcial en las horas de más sol si la especie no tolera bien el calor seco.",
     materiales: ["tierra de chacra", "compost", "arena", "mulch de corteza"],
-    },
-    aromatica: {
-          cuidados: "Riego moderado y frecuente, evitando encharcar. Pleno sol o semisombra segun la especie. Cosechar o podar las hojas regularmente para estimular brotes nuevos.",
-          climaPreferido: "La mayoria son de origen mediterraneo, adaptadas a climas templados y secos con buena exposicion solar.",
-          adaptacion: "Se adaptan bien al clima arido de Ica; conviene regar en las horas mas frescas del dia para evitar el estres hidrico por el calor.",
+  },
+  aromatica: {
+    cuidados: "Riego moderado y frecuente, evitando encharcar. Pleno sol o semisombra según la especie. Cosechar o podar las hojas regularmente para estimular brotes nuevos.",
+    climaPreferido: "La mayoría son de origen mediterráneo, adaptadas a climas templados y secos con buena exposición solar.",
+    adaptacion: "Se adaptan bien al clima árido de Ica; conviene regar en las horas más frescas del día para evitar el estrés hídrico por el calor.",
     materiales: ["tierra de hoja", "arena gruesa", "compost", "perlita"],
-    },
-    ornamental: {
-          cuidados: "Riego moderado, dejando secar la superficie del sustrato entre riegos. Luz indirecta, evitando el sol directo intenso. Limpiar las hojas periodicamente para favorecer la fotosintesis.",
-          climaPreferido: "Ambientes interiores estables, con temperatura templada y humedad moderada.",
-          adaptacion: "Protegerla del sol directo y del aire muy seco tipico de Ica; ubicarla lejos de corrientes de aire caliente y considerar aumentar la humedad ambiental a su alrededor.",
+  },
+  ornamental: {
+    cuidados: "Riego moderado, dejando secar la superficie del sustrato entre riegos. Luz indirecta, evitando el sol directo intenso. Limpiar las hojas periódicamente para favorecer la fotosíntesis.",
+    climaPreferido: "Ambientes interiores estables, con temperatura templada y humedad moderada.",
+    adaptacion: "Protegerla del sol directo y del aire muy seco típico de Ica; ubicarla lejos de corrientes de aire caliente y considerar aumentar la humedad ambiental a su alrededor.",
     materiales: ["tierra negra", "compost", "perlita", "corteza de pino", "musgo"],
-    },
-    otra: {
-          cuidados: "Revisa las necesidades especificas de riego, luz y poda segun la especie identificada.",
-          climaPreferido: "Variable segun la especie.",
-          adaptacion: "Ajusta el cuidado observando como responde la planta al clima arido y seco de Ica.",
+  },
+  palmera: {
+    cuidados: "Riego regular en verano, más espaciado en invierno. Pleno sol o semisombra según la especie. Retirar hojas secas de la base periódicamente.",
+    climaPreferido: "Climas cálidos y tropicales o subtropicales; muchas toleran algo de sequía una vez establecidas.",
+    adaptacion: "La mayoría se adapta bien al calor seco de Ica; reforzar el riego en los meses más calurosos y proteger del viento fuerte cuando son jóvenes.",
+    materiales: ["tierra franca", "arena gruesa", "compost"],
+  },
+  conifera: {
+    cuidados: "Riego moderado y espaciado, evitando encharcamiento. Pleno sol. Podas ligeras de mantenimiento.",
+    climaPreferido: "Climas templados a fríos, con estaciones bien marcadas.",
+    adaptacion: "En Ica conviene regar con más frecuencia en verano y vigilar el estrés por calor; elegir variedades tolerantes a climas áridos.",
+    materiales: ["tierra de jardín", "arena", "compost"],
+  },
+  trepadora: {
+    cuidados: "Riego regular manteniendo el sustrato húmedo sin encharcar. Luz indirecta a media sombra. Proveer tutor o soporte para que trepe.",
+    climaPreferido: "Climas cálidos y húmedos; muchas son de origen tropical o subtropical.",
+    adaptacion: "Ubicar en zonas con sombra parcial y aumentar la frecuencia de riego para compensar la sequedad ambiental de Ica.",
+    materiales: ["tierra negra", "compost", "fibra de coco", "perlita"],
+  },
+  bulbosa: {
+    cuidados: "Riego moderado durante el crecimiento activo, reducir o suspender en el periodo de dormancia del bulbo. Pleno sol a semisombra.",
+    climaPreferido: "Varía según la especie; muchas prefieren climas templados con una temporada fría o seca marcada.",
+    adaptacion: "Asegurar buen drenaje para evitar pudrición del bulbo por el calor y riego irregular; plantar a la profundidad adecuada.",
+    materiales: ["tierra franca", "arena", "compost"],
+  },
+  orquidea: {
+    cuidados: "Riego por inmersión o nebulización cuando el sustrato se seca, evitando encharcar las raíces. Luz indirecta brillante. Buena ventilación.",
+    climaPreferido: "Climas tropicales húmedos con alta humedad ambiental y temperaturas estables.",
+    adaptacion: "En Ica, aumentar la humedad con nebulizaciones frecuentes y ubicar lejos de corrientes de aire seco y sol directo intenso.",
+    materiales: ["corteza de pino", "musgo sphagnum", "carbón activado"],
+  },
+  helecho: {
+    cuidados: "Mantener el sustrato siempre húmedo, sin encharcar. Sombra o luz indirecta baja. Nebulizar las frondas regularmente.",
+    climaPreferido: "Climas húmedos y sombríos, típicos de sotobosque tropical o templado.",
+    adaptacion: "Ubicar en el rincón más sombreado y húmedo disponible, y nebulizar con frecuencia para contrarrestar la sequedad del aire en Ica.",
+    materiales: ["turba", "fibra de coco", "tierra de hoja", "perlita", "carbón"],
+  },
+  acuatica: {
+    cuidados: "Mantener siempre sumergidas o con la base en agua limpia, renovándola periódicamente. Luz abundante, directa o indirecta según la especie.",
+    climaPreferido: "Climas cálidos y húmedos, con acceso constante a agua.",
+    adaptacion: "Vigilar la evaporación rápida del agua por el calor seco de Ica y reponerla con frecuencia; proteger de la exposición solar excesiva que puede calentar el agua.",
+    materiales: ["grava fina", "arcilla", "carbón activado"],
+  },
+  cesped: {
+    cuidados: "Riego frecuente y ligero, más abundante en épocas de calor. Corte regular para mantener una altura uniforme. Fertilizar cada 1-2 meses en crecimiento activo.",
+    climaPreferido: "Varía según la variedad; muchas céspedes toleran climas templados a cálidos con riego constante.",
+    adaptacion: "En el clima árido de Ica, regar con mayor frecuencia (idealmente en la madrugada o al atardecer) para evitar que se seque o se queme con el sol fuerte.",
+    materiales: ["tierra franca", "arena", "compost"],
+  },
+  bonsai: {
+    cuidados: "Riego frecuente en pequeñas cantidades, dejando que el sustrato drene bien. Podas y alambrado periódicos para mantener la forma. Luz abundante según la especie.",
+    climaPreferido: "Depende de la especie base; muchas prefieren climas templados con variación estacional.",
+    adaptacion: "Proteger de las horas de sol más intensas en Ica y aumentar la frecuencia de riego, ya que las macetas pequeñas se secan rápido con el calor.",
+    materiales: ["akadama", "arena gruesa", "compost"],
+  },
+  medicinal: {
+    cuidados: "Riego moderado, generalmente similar al de hierbas aromáticas. Pleno sol a semisombra. Cosechar hojas o partes según la especie sin dañar la planta.",
+    climaPreferido: "Muchas son de climas templados y secos, similares a las aromáticas mediterráneas.",
+    adaptacion: "Se adaptan razonablemente bien al clima árido de Ica; regar en horas frescas y vigilar el estrés hídrico en los días de más calor.",
+    materiales: ["tierra de hoja", "arena", "compost"],
+  },
+  otra: {
+    cuidados: "Revisa las necesidades específicas de riego, luz y poda según la especie identificada.",
+    climaPreferido: "Variable según la especie.",
+    adaptacion: "Ajusta el cuidado observando cómo responde la planta al clima árido y seco de Ica.",
     materiales: ["compost", "arena", "sustrato balanceado"],
-    },
+  },
 };
 
 const FAMILY_TO_CATEGORY = {
@@ -106,10 +236,20 @@ const FAMILY_TO_CATEGORY = {
     Musaceae: "tropical",
     Zingiberaceae: "tropical",
     Bromeliaceae: "tropical",
-    Orchidaceae: "tropical",
     Heliconiaceae: "tropical",
     Strelitziaceae: "tropical",
-    Arecaceae: "tropical",
+    Orchidaceae: "orquidea",
+    Arecaceae: "palmera",
+    Pinaceae: "conifera",
+    Cupressaceae: "conifera",
+    Araucariaceae: "conifera",
+    Poaceae: "cesped",
+    Pteridaceae: "helecho",
+    Polypodiaceae: "helecho",
+    Dryopteridaceae: "helecho",
+    Amaryllidaceae: "bulbosa",
+    Iridaceae: "bulbosa",
+    Liliaceae: "bulbosa",
     Rutaceae: "frutal",
     Rosaceae: "frutal",
     Anacardiaceae: "frutal",
@@ -125,9 +265,6 @@ const FAMILY_TO_CATEGORY = {
     Araliaceae: "ornamental",
     Moraceae: "ornamental",
     Begoniaceae: "ornamental",
-    Liliaceae: "ornamental",
-    Amaryllidaceae: "ornamental",
-    Iridaceae: "ornamental",
     Rubiaceae: "ornamental",
     Malvaceae: "ornamental",
     Apocynaceae: "ornamental",
@@ -336,6 +473,8 @@ function PlantInventory({ onLogout }) {
   const [climateLoading, setClimateLoading] = useState(false);
   const [climateError, setClimateError] = useState("");
   const [ubicacionClima, setUbicacionClima] = useState("Ica, Perú");
+  const [addingTipo, setAddingTipo] = useState(false);
+  const [newTipoName, setNewTipoName] = useState("");
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -398,6 +537,24 @@ function PlantInventory({ onLogout }) {
     try {
       await storage.set(LOCATION_KEY, next);
     } catch (e) {}
+  };
+
+  const addCustomTipo = () => {
+    const label = newTipoName.trim();
+    if (!label) return;
+    let id = slugify(label);
+    if (!id) id = "area-" + Date.now();
+    if (tipos.some((tp) => tp.id === id)) id = id + "-" + Date.now().toString().slice(-4);
+    const nuevo = {
+      id,
+      label,
+      color: pickColor(tipos),
+      sustrato: "Sustrato balanceado con buen drenaje; ajustar según la especie.",
+      estratos: [50, 50],
+    };
+    persistTipos([...tipos, nuevo]);
+    setNewTipoName("");
+    setAddingTipo(false);
   };
 
   const openNew = () => {
@@ -629,6 +786,23 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
   const detailInfo = detailPlant ? tipoInfo(tipos, detailPlant.tipo) : null;
   const detailRisk = detailPlant ? riskById[detailPlant.id] : null;
 
+  const tipoCounts = tipos
+    .map((tp) => ({ ...tp, count: plants.filter((p) => p.tipo === tp.id).length }))
+    .filter((tp) => tp.count > 0);
+  const climaCounts = {};
+  plants.forEach((p) => {
+    const c = (p.climaPreferido || "").trim();
+    if (c) climaCounts[c] = (climaCounts[c] || 0) + 1;
+  });
+  const climaList = Object.entries(climaCounts).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const INCIDENT_KEYWORDS = ["plaga", "insecto", "hongo", "enferm", "mancha", "marchit", "pulg", "araña", "arana", "ácaro", "acaro"];
+  const incidentPlants = plants.filter((p) => {
+    const notas = (p.notas || "").toLowerCase();
+    const kw = INCIDENT_KEYWORDS.some((k) => notas.includes(k));
+    const evt = (p.eventos || []).some((e) => e.tipo === "plaga");
+    return kw || evt;
+  });
+
   return (
     <div style={styles.page}>
       <style>{`
@@ -671,21 +845,56 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
           </div>
         </div>
 
-        {/* Perfil de suelo */}
+        {/* Panorama del vivero */}
         <div style={styles.soilProfile}>
           <div style={styles.soilProfileLabel}>
             <Sun size={13} strokeWidth={2.5} />
-            Perfil de sustrato por área — se amplía cuando identificas plantas nuevas
+            Panorama del vivero
           </div>
-          <div style={styles.soilRows}>
-            {tipos.map((t) => (
-              <div key={t.id} style={styles.soilRow}>
-                <span style={styles.soilRowLabel}>{t.label}</span>
-                <StrataBar estratos={t.estratos} colorBase={t.color} />
-              </div>
-            ))}
+          <div style={styles.statsGrid}>
+            <div style={styles.statsCol}>
+              <div style={styles.statsColTitle}>Tipos de planta</div>
+              {tipoCounts.length === 0 ? (
+                <p style={styles.climateEmpty}>Aún no hay plantas registradas.</p>
+              ) : (
+                <div style={styles.badgeWrap}>
+                  {tipoCounts.map((tp) => (
+                    <span key={tp.id} style={{ ...styles.typeBadge, borderColor: tp.color }}>
+                      <span style={{ ...styles.areaDot, background: tp.color }} /> {tp.label} · {tp.count}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={styles.statsCol}>
+              <div style={styles.statsColTitle}>Clima predominante</div>
+              {climaList.length === 0 ? (
+                <p style={styles.climateEmpty}>Agrega el clima que prefiere cada planta para ver un resumen aquí.</p>
+              ) : (
+                <div style={styles.badgeWrap}>
+                  {climaList.map(([c, n]) => (
+                    <span key={c} style={styles.climaBadge}>{c} · {n}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={styles.statsCol}>
+              <div style={styles.statsColTitle}><Bug size={12} /> Incidentes</div>
+              {incidentPlants.length === 0 ? (
+                <p style={styles.climateEmpty}>Sin incidentes reportados. Agrega notas o eventos de "plaga" en cada planta para verlos aquí.</p>
+              ) : (
+                <div style={styles.incidentList}>
+                  {incidentPlants.map((p) => (
+                    <div key={p.id} style={styles.incidentItem}>
+                      <AlertTriangle size={12} color="#8A3B1D" />
+                      <span>{p.nombre}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+    </div>
 
         {/* Clima y alertas del día */}
         <div style={styles.climatePanel}>
@@ -769,7 +978,25 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
             <option key={t.id} value={t.id}>{t.label}</option>
           ))}
         </select>
-        <button style={styles.addBtn} onClick={triggerUpload} disabled={identifying}>
+        {!addingTipo ? (
+          <button type="button" style={styles.addBtnGhostSmall} onClick={() => setAddingTipo(true)}>
+            <Plus size={16} /> Nueva área
+          </button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              style={{ ...styles.input, width: 170 }}
+              placeholder="Ej. Palmeras"
+              value={newTipoName}
+              onChange={(e) => setNewTipoName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTipo(); } }}
+              autoFocus
+            />
+            <button type="button" style={styles.addBtnGhostSmall} onClick={addCustomTipo}>Agregar</button>
+            <button type="button" style={styles.cancelBtnSmall} onClick={() => { setAddingTipo(false); setNewTipoName(""); }}>Cancelar</button>
+          </div>
+        )}
+                <button style={styles.addBtn} onClick={triggerUpload} disabled={identifying}>
           {identifying ? <Loader2 size={16} className="spin" /> : <Camera size={16} />}
           {identifying ? "Identificando…" : "Subir foto"}
         </button>
@@ -841,12 +1068,14 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
                               <Leaf size={26} color={info.color} strokeWidth={1.5} />
                             </div>
                           )}
+                          <div style={styles.cardImageOverlay}>
+                            <h3 style={styles.cardNameOnImage}>{p.nombre}</h3>
+                            {p.variedad && <p style={styles.cardVarietyOnImage}>{p.variedad}</p>}
+                          </div>
                           {p.aiIdentified && <span style={styles.aiTag}><Sparkles size={11} /> IA</span>}
                           {risk && <span style={styles.riskTag}><AlertTriangle size={11} /> Riesgo hoy</span>}
                         </div>
                         <div style={styles.cardBody} onClick={() => setDetailPlantId(p.id)}>
-                          <h3 style={styles.cardName}>{p.nombre}</h3>
-                          {p.variedad && <p style={styles.cardVariety}>{p.variedad}</p>}
                           {p.ubicacion && <p style={styles.cardMeta}><MapPin size={12} /> {p.ubicacion}</p>}
 
                           {risk && (
@@ -1126,6 +1355,15 @@ const styles = {
   soilRows: { display: "flex", flexDirection: "column", gap: 8, marginTop: 12 },
   soilRow: { display: "grid", gridTemplateColumns: "150px 1fr", alignItems: "center", gap: 12 },
   soilRowLabel: { fontSize: 12.5, color: "#3C3120" },
+  statsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 18, marginTop: 12 },
+  statsCol: {},
+  statsColTitle: { display: "flex", alignItems: "center", gap: 5, fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.04em", color: "#8A7857", marginBottom: 8 },
+  badgeWrap: { display: "flex", flexWrap: "wrap", gap: 6 },
+  typeBadge: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, background: "#fff", border: "1px solid", borderRadius: 20, padding: "4px 10px", color: "#3C3120" },
+  climaBadge: { fontSize: 12, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 20, padding: "4px 10px", color: "#3C3120" },
+  incidentList: { display: "flex", flexDirection: "column", gap: 6 },
+  incidentItem: { display: "flex", alignItems: "center", gap: 6, background: "#F8ECE0", border: "1px solid #E7C4A5", borderRadius: 8, padding: "6px 10px", fontSize: 12.5, color: "#5C4A2E" },
+  cancelBtnSmall: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#6B4F2A", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 14px", fontSize: 13 },
   climatePanel: { marginTop: 14, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 10, padding: "16px 18px" },
   climateHeaderRow: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 },
   refreshBtn: { display: "flex", alignItems: "center", gap: 6, background: "#211C14", color: "#F1E9D2", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 12, fontWeight: 600 },
@@ -1160,15 +1398,18 @@ const styles = {
   areaCount: { fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#8A7857" },
   areaEmpty: { fontSize: 13, color: "#8A7857", fontStyle: "italic", margin: 0 },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 18 },
-  card: { background: "#fff", border: "1px solid #E4DAC0", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", position: "relative" },
+  card: { background: "#fff", borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column", position: "relative", boxShadow: "0 1px 4px rgba(33,28,20,0.10)" },
   cardAtRisk: { border: "1px solid #C97B4A", boxShadow: "0 0 0 1px #C97B4A22" },
-  cardImageWrap: { position: "relative", height: 130, cursor: "pointer" },
+  cardImageWrap: { position: "relative", height: 170, cursor: "pointer" },
   cardImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
   cardImagePlaceholder: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" },
+  cardImageOverlay: { position: "absolute", left: 0, right: 0, bottom: 0, padding: "30px 14px 12px", background: "linear-gradient(to top, rgba(33,28,20,0.88), rgba(33,28,20,0))" },
+  cardNameOnImage: { fontFamily: "'Fraunces', serif", fontSize: 18, fontWeight: 600, margin: 0, color: "#F8F1E0" },
+  cardVarietyOnImage: { fontStyle: "italic", fontSize: 11.5, color: "#E8DFC8", margin: "2px 0 0" },
   aiTag: { position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 4, background: "#211C14", color: "#F1E9D2", fontSize: 10, fontWeight: 600, padding: "4px 8px", borderRadius: 20, fontFamily: "'Space Mono', monospace" },
   riskTag: { position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 4, background: "#8A3B1D", color: "#F8ECE0", fontSize: 10, fontWeight: 600, padding: "4px 8px", borderRadius: 20, fontFamily: "'Space Mono', monospace" },
   riskBox: { background: "#F8ECE0", border: "1px solid #E7C4A5", borderRadius: 6, padding: "7px 9px", margin: "6px 0 10px" },
-  cardBody: { padding: "14px 16px 6px", flex: 1, cursor: "pointer" },
+  cardBody: { padding: "10px 16px 6px", flex: 1, cursor: "pointer" },
   cardName: { fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, margin: 0 },
   cardVariety: { fontStyle: "italic", fontSize: 12.5, color: "#6B4F2A", margin: "2px 0 8px" },
   cardMeta: { display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: "#8A7857", margin: "0 0 10px" },
