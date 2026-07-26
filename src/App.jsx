@@ -331,6 +331,7 @@ function PlantInventory({ onLogout }) {
   const [identifying, setIdentifying] = useState(false);
   const [identifyError, setIdentifyError] = useState("");
   const [logPlantId, setLogPlantId] = useState(null);
+  const [detailPlantId, setDetailPlantId] = useState(null);
   const [climate, setClimate] = useState(null);
   const [climateLoading, setClimateLoading] = useState(false);
   const [climateError, setClimateError] = useState("");
@@ -341,7 +342,22 @@ function PlantInventory({ onLogout }) {
     (async () => {
       try {
         const resPlants = await storage.get(PLANTS_KEY);
-        if (resPlants && resPlants.value) setPlants(JSON.parse(resPlants.value));
+        if (resPlants && resPlants.value) {
+          const parsedPlants = JSON.parse(resPlants.value);
+          let migrated = false;
+          const withDefaults = parsedPlants.map((p) => {
+            const care = CARE_INFO[p.tipo] || CARE_INFO.otra;
+            const next = { ...p };
+            if (!next.materiales) { next.materiales = (care.materiales || []).join(", "); migrated = true; }
+            if (!next.climaPreferido) { next.climaPreferido = care.climaPreferido; migrated = true; }
+            if (!next.adaptacion) { next.adaptacion = care.adaptacion; migrated = true; }
+            return next;
+          });
+          setPlants(withDefaults);
+          if (migrated) {
+            storage.set(PLANTS_KEY, JSON.stringify(withDefaults)).catch(() => {});
+          }
+        }
       } catch (e) {}
       try {
         const resTipos = await storage.get(TIPOS_KEY);
@@ -609,6 +625,9 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
   });
 
   const logPlant = logPlantId ? plants.find((p) => p.id === logPlantId) : null;
+  const detailPlant = detailPlantId ? plants.find((p) => p.id === detailPlantId) : null;
+  const detailInfo = detailPlant ? tipoInfo(tipos, detailPlant.tipo) : null;
+  const detailRisk = detailPlant ? riskById[detailPlant.id] : null;
 
   return (
     <div style={styles.page}>
@@ -814,7 +833,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
                     const ult = lastEvento(p);
                     return (
                       <div key={p.id} style={{ ...styles.card, ...(risk ? styles.cardAtRisk : {}) }} className="plant-card">
-                        <div style={styles.cardImageWrap}>
+                        <div style={styles.cardImageWrap} onClick={() => setDetailPlantId(p.id)}>
                           {p.imagen ? (
                             <img src={p.imagen} alt={p.nombre} style={styles.cardImage} />
                           ) : (
@@ -825,7 +844,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
                           {p.aiIdentified && <span style={styles.aiTag}><Sparkles size={11} /> IA</span>}
                           {risk && <span style={styles.riskTag}><AlertTriangle size={11} /> Riesgo hoy</span>}
                         </div>
-                        <div style={styles.cardBody}>
+                        <div style={styles.cardBody} onClick={() => setDetailPlantId(p.id)}>
                           <h3 style={styles.cardName}>{p.nombre}</h3>
                           {p.variedad && <p style={styles.cardVariety}>{p.variedad}</p>}
                           {p.ubicacion && <p style={styles.cardMeta}><MapPin size={12} /> {p.ubicacion}</p>}
@@ -837,31 +856,11 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
                             </div>
                           )}
 
-                          <div style={styles.cardSubstrateLabel}>Sustrato</div>
-                          <StrataBar estratos={info.estratos} colorBase={info.color} height={6} />
-                          <p style={styles.cardText}>{p.sustrato}</p>
-
-                      {p.materiales && (
-                        <div style={styles.materialesRow}>
-                          {p.materiales.split(",").map((m) => m.trim()).filter(Boolean).map((m, i) => (
-                            <span key={i} style={styles.materialChip}>{m}</span>
-                          ))}
-                        </div>
-                      )}
-
-                          {p.cuidados && <p style={styles.cardRow}><Droplet size={12} color="#6B4F2A" /> {p.cuidados}</p>}
-                          {p.climaPreferido && <p style={styles.cardRow}><Sun size={12} color="#6B4F2A" /> {p.climaPreferido}</p>}
-                          {p.adaptacion && <p style={styles.cardRow}><Compass size={12} color="#6B4F2A" /> {p.adaptacion}</p>}
-                          {p.notas && <p style={styles.cardNotes}>{p.notas}</p>}
-
-                          {ult && (
-                            <p style={styles.cardRow}><Clock size={12} color="#6B4F2A" /> {eventInfo(ult.tipo).label} · {fmtFecha(ult.fecha)}</p>
-                          )}
-                        </div>
+                          </div>
                         <div style={styles.cardActions}>
-                          <button style={styles.iconBtn} className="icon-btn" onClick={() => setLogPlantId(p.id)} aria-label="Ver bitácora"><ClipboardList size={14} /></button>
-                          <button style={styles.iconBtn} className="icon-btn" onClick={() => openEdit(p)} aria-label="Editar planta"><Pencil size={14} /></button>
-                          <button style={styles.iconBtn} className="icon-btn" onClick={() => handleDelete(p.id)} aria-label="Eliminar planta"><Trash2 size={14} /></button>
+                          <button style={styles.iconBtn} className="icon-btn" onClick={(e) => { e.stopPropagation(); setLogPlantId(p.id); }} aria-label="Ver bitácora"><ClipboardList size={14} /></button>
+                          <button style={styles.iconBtn} className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(p); }} aria-label="Editar planta"><Pencil size={14} /></button>
+                          <button style={styles.iconBtn} className="icon-btn" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} aria-label="Eliminar planta"><Trash2 size={14} /></button>
                         </div>
                       </div>
                     );
@@ -953,6 +952,85 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
       {logPlant && (
         <LogModal plant={logPlant} onClose={() => setLogPlantId(null)} onAdd={addEvento} onDelete={deleteEvento} />
       )}
+
+      {detailPlant && (
+        <DetailModal
+          plant={detailPlant}
+          info={detailInfo}
+          risk={detailRisk}
+          onClose={() => setDetailPlantId(null)}
+          onEdit={() => { setDetailPlantId(null); openEdit(detailPlant); }}
+          onLog={() => { setDetailPlantId(null); setLogPlantId(detailPlant.id); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function DetailModal({ plant, info, risk, onClose, onEdit, onLog }) {
+  const ult = lastEvento(plant);
+  return (
+    <div style={styles.overlay} onClick={onClose}>
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()} className="scroll-thin">
+        <div style={styles.modalHeader}>
+          <h2 style={styles.modalTitle}>{plant.nombre}</h2>
+          <button type="button" style={styles.closeBtn} onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
+        </div>
+        {plant.variedad && <p style={styles.cardVariety}>{plant.variedad}</p>}
+
+        {plant.imagen ? (
+          <img src={plant.imagen} alt={plant.nombre} style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 8, marginTop: 4 }} />
+        ) : (
+          <div style={{ width: "100%", height: 180, borderRadius: 8, marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", background: info.color + "22" }}>
+            <Leaf size={32} color={info.color} strokeWidth={1.5} />
+          </div>
+        )}
+
+        {plant.ubicacion && <p style={styles.cardMeta}><MapPin size={12} /> {plant.ubicacion}</p>}
+
+        {risk && (
+          <div style={styles.riskBox}>
+            <div style={{ fontWeight: 600, color: "#8A3B1D" }}>{risk.riesgo}</div>
+            <div style={{ color: "#5C4A2E", marginTop: 2 }}>{risk.sugerencia}</div>
+          </div>
+        )}
+
+        {(plant.fechaLlegada || plant.situacionLlegada) && (
+          <div style={styles.arrivalBox}>
+            <Home size={13} color="#6B4F2A" />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 12.5 }}>
+                {plant.fechaLlegada ? `Llegó el ${fmtFecha(plant.fechaLlegada)}` : "Llegada registrada"}
+              </div>
+              {plant.situacionLlegada && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{plant.situacionLlegada}</div>}
+            </div>
+          </div>
+        )}
+
+        <div style={styles.cardSubstrateLabel}>Sustrato</div>
+        <StrataBar estratos={info.estratos} colorBase={info.color} height={6} />
+        <p style={styles.cardText}>{plant.sustrato}</p>
+        {plant.materiales && (
+          <div style={styles.materialesRow}>
+            {plant.materiales.split(",").map((m) => m.trim()).filter(Boolean).map((m, i) => (
+              <span key={i} style={styles.materialChip}>{m}</span>
+            ))}
+          </div>
+        )}
+
+        {plant.cuidados && <p style={styles.cardRow}><Droplet size={12} color="#6B4F2A" /> {plant.cuidados}</p>}
+        {plant.climaPreferido && <p style={styles.cardRow}><Sun size={12} color="#6B4F2A" /> {plant.climaPreferido}</p>}
+        {plant.adaptacion && <p style={styles.cardRow}><Compass size={12} color="#6B4F2A" /> {plant.adaptacion}</p>}
+        {plant.notas && <p style={styles.cardNotes}>{plant.notas}</p>}
+        {ult && (
+          <p style={styles.cardRow}><Clock size={12} color="#6B4F2A" /> {eventInfo(ult.tipo).label} · {fmtFecha(ult.fecha)}</p>
+        )}
+
+        <div style={styles.modalActions}>
+          <button type="button" style={styles.cancelBtn} onClick={onLog}>Bitácora</button>
+          <button type="button" style={styles.saveBtn} onClick={onEdit}>Editar</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1084,13 +1162,13 @@ const styles = {
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 18 },
   card: { background: "#fff", border: "1px solid #E4DAC0", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", position: "relative" },
   cardAtRisk: { border: "1px solid #C97B4A", boxShadow: "0 0 0 1px #C97B4A22" },
-  cardImageWrap: { position: "relative", height: 130 },
+  cardImageWrap: { position: "relative", height: 130, cursor: "pointer" },
   cardImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
   cardImagePlaceholder: { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" },
   aiTag: { position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 4, background: "#211C14", color: "#F1E9D2", fontSize: 10, fontWeight: 600, padding: "4px 8px", borderRadius: 20, fontFamily: "'Space Mono', monospace" },
   riskTag: { position: "absolute", top: 10, left: 10, display: "flex", alignItems: "center", gap: 4, background: "#8A3B1D", color: "#F8ECE0", fontSize: 10, fontWeight: 600, padding: "4px 8px", borderRadius: 20, fontFamily: "'Space Mono', monospace" },
   riskBox: { background: "#F8ECE0", border: "1px solid #E7C4A5", borderRadius: 6, padding: "7px 9px", margin: "6px 0 10px" },
-  cardBody: { padding: "14px 16px 6px", flex: 1 },
+  cardBody: { padding: "14px 16px 6px", flex: 1, cursor: "pointer" },
   cardName: { fontFamily: "'Fraunces', serif", fontSize: 19, fontWeight: 600, margin: 0 },
   cardVariety: { fontStyle: "italic", fontSize: 12.5, color: "#6B4F2A", margin: "2px 0 8px" },
   cardMeta: { display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, color: "#8A7857", margin: "0 0 10px" },
