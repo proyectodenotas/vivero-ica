@@ -3,9 +3,17 @@ import {
   Search, Plus, X, Pencil, Trash2, Leaf, Sprout, MapPin, Sun,
   Camera, Loader2, Sparkles, Droplet, Compass, ClipboardList,
   Home, Bug, Scissors, Layers, Droplets, FileText, Clock,
-  CloudSun, RefreshCw, AlertTriangle, Flower2,
+  CloudSun, RefreshCw, AlertTriangle, Flower2, ShoppingCart, Coins,
 } from "lucide-react";
 import { storage } from "./storage.js";
+import { supabase } from "./supabaseClient.js";
+import * as db from "./data.js";
+
+async function authHeader() {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 // ---- Categorías base, con sustrato pensado para el clima árido de Ica ----
 const BASE_TIPOS = [
@@ -277,17 +285,17 @@ function categoryFromFamily(family) {
 }
 
 const EVENT_TYPES = [
-  { id: "llegada", label: "Llegada", icon: Home },
-  { id: "plaga", label: "Plaga", icon: Bug },
+  { id: "fertilizacion", label: "Fertilización", icon: Droplets },
+  { id: "riego", label: "Riego", icon: Droplet },
+  { id: "cambio_maceta", label: "Cambio de maceta", icon: Home },
+  { id: "cambio_sustrato", label: "Cambio de sustrato", icon: Layers },
   { id: "poda", label: "Poda", icon: Scissors },
-  { id: "sustrato", label: "Cambio de sustrato", icon: Layers },
-  { id: "fumigacion", label: "Fumigación / Abono", icon: Droplets },
+  { id: "control_plagas", label: "Control de plagas / fumigación", icon: Bug },
+  { id: "trasplante", label: "Trasplante", icon: Sprout },
   { id: "otro", label: "Otro", icon: FileText },
 ];
 const eventInfo = (id) => EVENT_TYPES.find((e) => e.id === id) || EVENT_TYPES[EVENT_TYPES.length - 1];
 
-const PLANTS_KEY = "ica-plant-inventory";
-const TIPOS_KEY = "ica-plant-tipos";
 const CLIMATE_KEY = "ica-plant-climate";
 const LOCATION_KEY = "ica-plant-location";
 
@@ -296,6 +304,7 @@ const emptyForm = {
   nombre: "",
   variedad: "",
   tipo: "cactus",
+  spaceId: "",
   sustrato: BASE_TIPOS[0].sustrato,
   materiales: (CARE_INFO.cactus.materiales || []).join(", "),
   cuidados: "",
@@ -304,20 +313,21 @@ const emptyForm = {
   ubicacion: "",
   imagen: "",
   notas: "",
-  fechaLlegada: "",
-  situacionLlegada: "",
+  fechaRecepcion: "",
+  viveroOrigen: "",
+  provinciaOrigen: "",
   eventos: [],
   aiIdentified: false,
 };
 
-function slugify(s) {
-  return (s || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
+const emptyTxForm = {
+  tipo: "compra",
+  plantId: "",
+  monto: "",
+  contraparte: "",
+  fecha: new Date().toISOString().slice(0, 10),
+  nota: "",
+};
 
 function pickColor(existingTipos) {
   const used = new Set(existingTipos.map((t) => t.color));
@@ -326,7 +336,13 @@ function pickColor(existingTipos) {
 }
 
 function tipoInfo(tipos, id) {
-  return tipos.find((t) => t.id === id) || tipos[tipos.length - 1] || BASE_TIPOS[BASE_TIPOS.length - 1];
+  return (
+    tipos.find((t) => t.id === id || t.slug === id) || tipos[tipos.length - 1] || BASE_TIPOS[BASE_TIPOS.length - 1]
+  );
+}
+
+function careInfoFor(tipoRow) {
+  return CARE_INFO[tipoRow?.slug || tipoRow?.id] || CARE_INFO.otra;
 }
 
 function lastEvento(p) {
@@ -382,17 +398,92 @@ function StrataBar({ estratos, colorBase, height = 10 }) {
   );
 }
 
+function ArrivalBox({ plant }) {
+  if (!plant.fechaRecepcion && !plant.viveroOrigen && !plant.provinciaOrigen) return null;
+  const partes = [];
+  if (plant.viveroOrigen) partes.push(`de ${plant.viveroOrigen}`);
+  if (plant.provinciaOrigen) partes.push(plant.provinciaOrigen);
+  return (
+    <div style={styles.arrivalBox}>
+      <Home size={13} color="#6B4F2A" />
+      <div>
+        <div style={{ fontWeight: 600, fontSize: 12.5 }}>
+          {plant.fechaRecepcion ? `Recibida el ${fmtFecha(plant.fechaRecepcion)}` : "Recepción registrada"}
+        </div>
+        {partes.length > 0 && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{partes.join(" — ")}</div>}
+      </div>
+    </div>
+  );
+}
+
 function LogModal({ plant, onClose, onAdd, onDelete }) {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
-  const [tipo, setTipo] = useState("plaga");
+  const [tipo, setTipo] = useState(EVENT_TYPES[0].id);
   const [nota, setNota] = useState("");
+  const [insumo, setInsumo] = useState("");
+  const [dosis, setDosis] = useState("");
+  const [repiteCadaDias, setRepiteCadaDias] = useState("");
+  const [suggestion, setSuggestion] = useState("");
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState("");
   const eventos = [...(plant.eventos || [])].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
 
   const submit = (e) => {
     e.preventDefault();
     if (!fecha) return;
-    onAdd(plant.id, { fecha, tipo, nota });
+    let proximaFechaSugerida = null;
+    const dias = parseInt(repiteCadaDias, 10);
+    if (dias > 0) {
+      const d = new Date(fecha + "T00:00:00");
+      d.setDate(d.getDate() + dias);
+      proximaFechaSugerida = d.toISOString().slice(0, 10);
+    }
+    onAdd(plant.id, { fecha, tipo, nota, insumo, dosis, repiteCadaDias: dias > 0 ? dias : null, proximaFechaSugerida });
     setNota("");
+    setInsumo("");
+    setDosis("");
+    setRepiteCadaDias("");
+  };
+
+  const fetchSuggestion = async () => {
+    setSuggestLoading(true);
+    setSuggestError("");
+    setSuggestion("");
+    try {
+      const historial = eventos
+        .map((ev) => {
+          const info = eventInfo(ev.tipo);
+          const detalle = [info.label];
+          if (ev.insumo) detalle.push(ev.insumo + (ev.dosis ? ` (${ev.dosis})` : ""));
+          if (ev.nota) detalle.push(ev.nota);
+          return `${fmtFecha(ev.fecha)} — ${detalle.join(": ")}`;
+        })
+        .join("\n") || "Sin eventos registrados todavía.";
+      const prompt = `Planta: ${plant.nombre}${plant.variedad ? ` (${plant.variedad})` : ""}, en un vivero doméstico de Ica, Perú (clima árido, costero, hemisferio sur).
+Cuidados generales conocidos: ${plant.cuidados || "no especificados"}.
+Historial reciente de bitácora:
+${historial}
+
+Busca si hay plagas o cuidados de temporada relevantes ahora mismo para esta especie en Ica, y da hasta 3 recomendaciones breves y accionables de cuidado para las próximas semanas, considerando el historial. Responde en español, en 2-4 frases, directo y práctico, sin formato JSON.`;
+      const response = await fetch("/api/claude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 500,
+          messages: [{ role: "user", content: prompt }],
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+        }),
+      });
+      const data = await response.json();
+      const text = (data.content || []).map((b) => b.text || "").join("\n").trim();
+      if (!text) throw new Error("sin respuesta");
+      setSuggestion(text);
+    } catch (err) {
+      setSuggestError("No se pudo obtener una recomendación ahora. Intenta de nuevo.");
+    } finally {
+      setSuggestLoading(false);
+    }
   };
 
   return (
@@ -403,26 +494,30 @@ function LogModal({ plant, onClose, onAdd, onDelete }) {
           <button type="button" style={styles.closeBtn} onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
         </div>
 
-        {(plant.fechaLlegada || plant.situacionLlegada) && (
-          <div style={styles.arrivalBox}>
-            <Home size={13} color="#6B4F2A" />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 12.5 }}>
-                {plant.fechaLlegada ? `Llegó el ${fmtFecha(plant.fechaLlegada)}` : "Llegada registrada"}
-              </div>
-              {plant.situacionLlegada && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{plant.situacionLlegada}</div>}
-            </div>
-          </div>
-        )}
+        <ArrivalBox plant={plant} />
 
         <form onSubmit={submit} style={styles.logForm}>
           <div style={{ display: "flex", gap: 8 }}>
             <input type="date" style={{ ...styles.input, flex: 1 }} value={fecha} onChange={(e) => setFecha(e.target.value)} required />
             <select style={{ ...styles.input, flex: 1 }} value={tipo} onChange={(e) => setTipo(e.target.value)}>
-              {EVENT_TYPES.filter((t) => t.id !== "llegada").map((t) => (
+              {EVENT_TYPES.map((t) => (
                 <option key={t.id} value={t.id}>{t.label}</option>
               ))}
             </select>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <input
+              style={{ ...styles.input, flex: 1 }}
+              placeholder="Insumo / producto (opcional)"
+              value={insumo}
+              onChange={(e) => setInsumo(e.target.value)}
+            />
+            <input
+              style={{ ...styles.input, flex: 1 }}
+              placeholder="Dosis (opcional)"
+              value={dosis}
+              onChange={(e) => setDosis(e.target.value)}
+            />
           </div>
           <input
             style={{ ...styles.input, marginTop: 8 }}
@@ -430,8 +525,29 @@ function LogModal({ plant, onClose, onAdd, onDelete }) {
             value={nota}
             onChange={(e) => setNota(e.target.value)}
           />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <label style={{ ...styles.label, margin: 0, whiteSpace: "nowrap" }}>Repetir cada</label>
+            <input
+              type="number"
+              min="1"
+              style={{ ...styles.input, width: 80 }}
+              placeholder="días"
+              value={repiteCadaDias}
+              onChange={(e) => setRepiteCadaDias(e.target.value)}
+            />
+            <span style={{ fontSize: 12, color: "#6B4F2A" }}>días (opcional, genera una alerta en el calendario)</span>
+          </div>
           <button type="submit" style={{ ...styles.saveBtn, marginTop: 10 }}>Agregar al historial</button>
         </form>
+
+        <div style={{ marginTop: 16 }}>
+          <button type="button" style={styles.addBtnGhostSmall} onClick={fetchSuggestion} disabled={suggestLoading}>
+            {suggestLoading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+            {suggestLoading ? "Buscando…" : "Sugerencias de cuidado (IA)"}
+          </button>
+          {suggestError && <p style={{ ...styles.climateError, marginTop: 8 }}>{suggestError}</p>}
+          {suggestion && <p style={{ fontSize: 12.5, color: "#3C3120", background: "#F8F1E0", border: "1px solid #E4DAC0", borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>{suggestion}</p>}
+        </div>
 
         <div style={styles.logList}>
           {eventos.length === 0 && <p style={styles.emptyText}>Todavía no hay eventos registrados.</p>}
@@ -443,7 +559,11 @@ function LogModal({ plant, onClose, onAdd, onDelete }) {
                 <Icon size={14} color="#6B4F2A" style={{ marginTop: 2, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>{info.label} · {fmtFecha(ev.fecha)}</div>
+                  {ev.insumo && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{ev.insumo}{ev.dosis ? ` — ${ev.dosis}` : ""}</div>}
                   {ev.nota && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{ev.nota}</div>}
+                  {ev.proximaFechaSugerida && (
+                    <div style={{ fontSize: 11, color: "#A85C32", marginTop: 2 }}>Próxima: {fmtFecha(ev.proximaFechaSugerida)}</div>
+                  )}
                 </div>
                 <button type="button" style={styles.logDelete} onClick={() => onDelete(plant.id, ev.id)} aria-label="Eliminar evento"><Trash2 size={13} /></button>
               </div>
@@ -455,8 +575,636 @@ function LogModal({ plant, onClose, onAdd, onDelete }) {
   );
 }
 
+function fromDbPlant(row) {
+  return {
+    id: row.id,
+    nombre: row.nombre,
+    variedad: row.variedad || "",
+    tipo: row.tipo_id,
+    spaceId: row.space_id || "",
+    sustrato: row.sustrato || "",
+    materiales: row.materiales || "",
+    cuidados: row.cuidados || "",
+    climaPreferido: row.clima_preferido || "",
+    adaptacion: row.adaptacion || "",
+    ubicacion: row.ubicacion || "",
+    imagen: row.foto_url || "",
+    notas: row.notas || "",
+    fechaRecepcion: row.fecha_recepcion || "",
+    viveroOrigen: row.vivero_origen || "",
+    provinciaOrigen: row.provincia_origen || "",
+    estado: row.estado,
+    valorActual: row.valor_actual,
+    aiIdentified: !!row.ai_identified,
+    createdAt: row.created_at,
+    eventos: [],
+  };
+}
+
+function monthLabel(d) {
+  return d.toLocaleDateString("es-PE", { month: "short" });
+}
+
+function endOfMonthIso(d) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+}
+
+function DashboardView({ plants, tipos, spaces, transacciones }) {
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+  const defaultFrom = new Date(today.getFullYear(), today.getMonth() - 5, 1);
+  const [fromStr, setFromStr] = useState(defaultFrom.toISOString().slice(0, 10));
+  const [toStr, setToStr] = useState(todayIso);
+
+  const soldAtByPlant = {};
+  transacciones.forEach((t) => {
+    if (t.tipo === "venta" && (!soldAtByPlant[t.plant_id] || t.fecha < soldAtByPlant[t.plant_id])) {
+      soldAtByPlant[t.plant_id] = t.fecha;
+    }
+  });
+
+  const activeAsOf = (dateIso) =>
+    plants.filter((p) => {
+      const created = (p.createdAt || "").slice(0, 10);
+      if (!created || created > dateIso) return false;
+      const soldAt = soldAtByPlant[p.id];
+      if (soldAt && soldAt <= dateIso) return false;
+      return true;
+    });
+
+  const activeNow = activeAsOf(toStr);
+
+  const altasEnRango = plants.filter((p) => {
+    const created = (p.createdAt || "").slice(0, 10);
+    return created >= fromStr && created <= toStr;
+  }).length;
+  const bajasEnRango = new Set(
+    transacciones.filter((t) => t.tipo === "venta" && t.fecha >= fromStr && t.fecha <= toStr).map((t) => t.plant_id)
+  ).size;
+  const variacion = altasEnRango - bajasEnRango;
+
+  const fromDate = new Date(fromStr + "T00:00:00");
+  const toDate = new Date(toStr + "T00:00:00");
+  const months = [];
+  let cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+  const last = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+  while (cursor <= last && months.length < 24) {
+    months.push(new Date(cursor));
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  const timeline = months.map((m) => ({ label: monthLabel(m), count: activeAsOf(endOfMonthIso(m)).length }));
+  const maxCount = Math.max(1, ...timeline.map((t) => t.count));
+
+  const tipoDist = tipos
+    .map((t) => ({ id: t.id, label: t.label, color: t.color, count: activeNow.filter((p) => p.tipo === t.id).length }))
+    .filter((t) => t.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const maxTipo = Math.max(1, ...tipoDist.map((t) => t.count));
+
+  const spaceDist = spaces
+    .map((s) => ({ id: s.id, label: s.nombre, count: activeNow.filter((p) => p.spaceId === s.id).length }))
+    .filter((s) => s.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const sinEspacio = activeNow.filter((p) => !p.spaceId).length;
+  if (sinEspacio > 0) spaceDist.push({ id: "__sin__", label: "Sin espacio asignado", count: sinEspacio });
+  const maxSpace = Math.max(1, ...spaceDist.map((s) => s.count));
+
+  const INCIDENT_KEYWORDS = ["plaga", "insecto", "hongo", "enferm", "mancha", "marchit", "pulg", "araña", "arana", "ácaro", "acaro"];
+  const alertPlantIds = new Set();
+  activeNow.forEach((p) => {
+    const notas = (p.notas || "").toLowerCase();
+    if (INCIDENT_KEYWORDS.some((k) => notas.includes(k))) alertPlantIds.add(p.id);
+    if ((p.eventos || []).some((e) => e.tipo === "control_plagas")) alertPlantIds.add(p.id);
+    if ((p.eventos || []).some((e) => e.proximaFechaSugerida && e.proximaFechaSugerida < todayIso)) alertPlantIds.add(p.id);
+  });
+
+  return (
+    <>
+      <div style={styles.toolbar}>
+        <label style={{ fontSize: 12, color: "#6B4F2A" }}>Desde</label>
+        <input type="date" style={styles.input} value={fromStr} onChange={(e) => setFromStr(e.target.value)} />
+        <label style={{ fontSize: 12, color: "#6B4F2A" }}>Hasta</label>
+        <input type="date" style={styles.input} value={toStr} onChange={(e) => setToStr(e.target.value)} />
+      </div>
+
+      <div style={styles.dashGrid}>
+        <div style={styles.statTile}>
+          <div style={styles.statTileLabel}>Plantas activas</div>
+          <div style={styles.statTileValue}>{activeNow.length}</div>
+          <div style={{ ...styles.statTileDelta, color: variacion >= 0 ? "#2F5233" : "#8A3B1D" }}>
+            {variacion >= 0 ? "+" : ""}{variacion} en el rango ({altasEnRango} altas, {bajasEnRango} bajas)
+          </div>
+        </div>
+        <div style={styles.statTile}>
+          <div style={styles.statTileLabel}>Alertas activas</div>
+          <div style={{ ...styles.statTileValue, color: alertPlantIds.size > 0 ? "#8A3B1D" : "#211C14" }}>{alertPlantIds.size}</div>
+          <div style={styles.statTileDelta}>{alertPlantIds.size === 1 ? "planta requiere atención" : "plantas requieren atención"}</div>
+        </div>
+      </div>
+
+      <div style={{ ...styles.climatePanel, maxWidth: 980, margin: "16px auto 0" }}>
+        <div style={styles.soilProfileLabel}>Evolución del inventario</div>
+        {timeline.length === 0 ? (
+          <p style={styles.climateEmpty}>Ajusta el rango de fechas para ver la evolución.</p>
+        ) : (
+          <div style={styles.timelineChart}>
+            {timeline.map((t, i) => (
+              <div key={i} style={styles.timelineCol} title={`${t.label}: ${t.count}`}>
+                <div style={{ ...styles.timelineBar, height: `${Math.max(4, (t.count / maxCount) * 100)}%` }}>
+                  {i === timeline.length - 1 && <span style={styles.timelineBarLabel}>{t.count}</span>}
+                </div>
+                <div style={styles.timelineColLabel}>{t.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={styles.dashGrid2}>
+        <div style={styles.climatePanel}>
+          <div style={styles.soilProfileLabel}>Distribución por tipo</div>
+          {tipoDist.length === 0 ? (
+            <p style={styles.climateEmpty}>Sin plantas activas.</p>
+          ) : (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              {tipoDist.map((t) => (
+                <div key={t.id} style={styles.barRow}>
+                  <div style={styles.barRowLabel} title={t.label}>{t.label}</div>
+                  <div style={styles.barTrack}>
+                    <div style={{ ...styles.barFill, width: `${(t.count / maxTipo) * 100}%`, background: t.color }} />
+                  </div>
+                  <div style={styles.barRowValue}>{t.count}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={styles.climatePanel}>
+          <div style={styles.soilProfileLabel}>Distribución por espacio</div>
+          {spaceDist.length === 0 ? (
+            <p style={styles.climateEmpty}>Sin espacios asignados todavía.</p>
+          ) : (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              {spaceDist.map((s) => (
+                <div key={s.id} style={styles.barRow}>
+                  <div style={styles.barRowLabel} title={s.label}>{s.label}</div>
+                  <div style={styles.barTrack}>
+                    <div style={{ ...styles.barFill, width: `${(s.count / maxSpace) * 100}%`, background: "#6B4F2A" }} />
+                  </div>
+                  <div style={styles.barRowValue}>{s.count}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ConfigView({ ownerId, profile, tipos, setTipos, spaces, setSpaces, onLogout }) {
+  const isAdmin = profile?.role === "admin";
+
+  // ---- cambiar contraseña ----
+  const [newPassword, setNewPassword] = useState("");
+  const [pwMsg, setPwMsg] = useState("");
+  const [pwError, setPwError] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+
+  const changePassword = async (e) => {
+    e.preventDefault();
+    setPwMsg("");
+    setPwError("");
+    if (newPassword.length < 6) { setPwError("La clave debe tener al menos 6 caracteres."); return; }
+    setPwSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPwSaving(false);
+    if (error) setPwError("No se pudo cambiar la clave. Intenta de nuevo.");
+    else { setPwMsg("Clave actualizada."); setNewPassword(""); }
+  };
+
+  // ---- tipos: editar / eliminar ----
+  const [editingTipoId, setEditingTipoId] = useState(null);
+  const [editTipoLabel, setEditTipoLabel] = useState("");
+  const [tiposError, setTiposError] = useState("");
+
+  const startEditTipo = (t) => { setEditingTipoId(t.id); setEditTipoLabel(t.label); };
+
+  const saveTipoEdit = async (id) => {
+    if (!editTipoLabel.trim()) return;
+    try {
+      const updated = await db.updatePlantType(id, { label: editTipoLabel.trim() });
+      setTipos((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      setEditingTipoId(null);
+    } catch (e) {
+      setTiposError("No se pudo actualizar el área.");
+    }
+  };
+
+  const removeTipo = async (id) => {
+    if (!window.confirm("Eliminar esta área. Las plantas que la usan quedarán sin área asignada.")) return;
+    try {
+      await db.deletePlantType(id);
+      setTipos((prev) => prev.filter((t) => t.id !== id));
+    } catch (e) {
+      setTiposError("No se pudo eliminar el área.");
+    }
+  };
+
+  // ---- espacios: editar / eliminar ----
+  const [editingSpaceId, setEditingSpaceId] = useState(null);
+  const [editSpaceName, setEditSpaceName] = useState("");
+  const [spacesError, setSpacesError] = useState("");
+
+  const startEditSpace = (s) => { setEditingSpaceId(s.id); setEditSpaceName(s.nombre); };
+
+  const saveSpaceEdit = async (id) => {
+    if (!editSpaceName.trim()) return;
+    try {
+      const updated = await db.updateSpace(id, { nombre: editSpaceName.trim() });
+      setSpaces((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      setEditingSpaceId(null);
+    } catch (e) {
+      setSpacesError("No se pudo actualizar el espacio.");
+    }
+  };
+
+  const removeSpace = async (id) => {
+    if (!window.confirm("Eliminar este espacio. Las plantas que lo usan quedarán sin espacio asignado.")) return;
+    try {
+      await db.deleteSpace(id);
+      setSpaces((prev) => prev.filter((s) => s.id !== id));
+    } catch (e) {
+      setSpacesError("No se pudo eliminar el espacio.");
+    }
+  };
+
+  // ---- migración de datos locales (versión pre-Supabase) ----
+  const [hasLocalData, setHasLocalData] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+  const [migrateMsg, setMigrateMsg] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const oldPlants = await storage.get("ica-plant-inventory");
+        const oldTipos = await storage.get("ica-plant-tipos");
+        setHasLocalData(!!(oldPlants && oldPlants.value) || !!(oldTipos && oldTipos.value));
+      } catch (e) {}
+    })();
+  }, []);
+
+  const migrateLocalData = async () => {
+    setMigrating(true);
+    setMigrateMsg("");
+    try {
+      const oldPlantsRes = await storage.get("ica-plant-inventory");
+      const oldTiposRes = await storage.get("ica-plant-tipos");
+      const oldPlants = oldPlantsRes && oldPlantsRes.value ? JSON.parse(oldPlantsRes.value) : [];
+      const oldTipos = oldTiposRes && oldTiposRes.value ? JSON.parse(oldTiposRes.value) : [];
+      const result = await db.migrateLocalInventory(ownerId, { oldPlants, oldTipos, currentTipos: tipos });
+      try {
+        localStorage.removeItem("vivero:ica-plant-inventory");
+        localStorage.removeItem("vivero:ica-plant-tipos");
+      } catch (e) {}
+      setHasLocalData(false);
+      setMigrateMsg(`Se migraron ${result.migratedCount} plantas. Recargando la página…`);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e) {
+      setMigrateMsg("Ocurrió un error durante la migración. Intenta de nuevo.");
+    } finally {
+      setMigrating(false);
+    }
+  };
+
+  // ---- gestión de usuarios (solo admin) ----
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState("");
+  const [newUserFormOpen, setNewUserFormOpen] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ email: "", password: "", nombre: "", viveroNombre: "" });
+
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    setUsersError("");
+    try {
+      const res = await fetch("/api/admin-users", { headers: await authHeader() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setUsers(data.users);
+    } catch (e) {
+      setUsersError("No se pudo cargar la lista de usuarios.");
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin) loadUsers();
+  }, [isAdmin]);
+
+  const createUser = async (e) => {
+    e.preventDefault();
+    setUsersError("");
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify(newUserForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setNewUserForm({ email: "", password: "", nombre: "", viveroNombre: "" });
+      setNewUserFormOpen(false);
+      loadUsers();
+    } catch (e) {
+      setUsersError(e.message || "No se pudo crear el usuario.");
+    }
+  };
+
+  const toggleUserActive = async (u) => {
+    setUsersError("");
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({ id: u.id, active: !u.active }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      loadUsers();
+    } catch (e) {
+      setUsersError(e.message || "No se pudo actualizar el usuario.");
+    }
+  };
+
+  return (
+    <div style={styles.areas}>
+      {isAdmin && (
+        <div style={styles.climatePanel}>
+          <div style={styles.climateHeaderRow}>
+            <div style={styles.soilProfileLabel}>Gestión de usuarios</div>
+            <button type="button" style={styles.addBtnGhostSmall} onClick={() => setNewUserFormOpen((v) => !v)}>
+              <Plus size={14} /> Nuevo usuario
+            </button>
+          </div>
+
+          {newUserFormOpen && (
+            <form onSubmit={createUser} style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+              <input type="email" style={styles.input} placeholder="Correo" value={newUserForm.email}
+                onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })} required />
+              <input type="password" style={styles.input} placeholder="Clave temporal" value={newUserForm.password}
+                onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} required minLength={6} />
+              <input style={styles.input} placeholder="Nombre (opcional)" value={newUserForm.nombre}
+                onChange={(e) => setNewUserForm({ ...newUserForm, nombre: e.target.value })} />
+              <input style={styles.input} placeholder="Nombre del vivero (opcional)" value={newUserForm.viveroNombre}
+                onChange={(e) => setNewUserForm({ ...newUserForm, viveroNombre: e.target.value })} />
+              <button type="submit" style={styles.saveBtn}>Crear usuario</button>
+            </form>
+          )}
+
+          {usersError && <p style={{ ...styles.climateError, marginTop: 10 }}>{usersError}</p>}
+
+          <div style={{ ...styles.logList, marginTop: 12 }}>
+            {usersLoading && <p style={styles.emptyText}>Cargando usuarios…</p>}
+            {!usersLoading && users.map((u) => (
+              <div key={u.id} style={styles.logItem}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>
+                    {u.email || u.id}{u.role === "admin" ? " · admin" : ""}{!u.active ? " · desactivado" : ""}
+                  </div>
+                  {(u.nombre || u.vivero_nombre) && (
+                    <div style={{ fontSize: 12, color: "#5C4A2E" }}>{[u.nombre, u.vivero_nombre].filter(Boolean).join(" — ")}</div>
+                  )}
+                </div>
+                {u.id !== ownerId && (
+                  <button type="button" style={styles.addBtnGhostSmall} onClick={() => toggleUserActive(u)}>
+                    {u.active ? "Desactivar" : "Activar"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={styles.climatePanel}>
+        <div style={styles.soilProfileLabel}>Áreas (tipos de planta)</div>
+        {tiposError && <p style={{ ...styles.climateError, marginTop: 8 }}>{tiposError}</p>}
+        <div style={{ ...styles.logList, marginTop: 12 }}>
+          {tipos.map((t) => (
+            <div key={t.id} style={styles.logItem}>
+              <span style={{ ...styles.areaDot, background: t.color, marginTop: 4 }} />
+              {editingTipoId === t.id ? (
+                <>
+                  <input style={{ ...styles.input, flex: 1 }} value={editTipoLabel} onChange={(e) => setEditTipoLabel(e.target.value)} autoFocus />
+                  <button type="button" style={styles.addBtnGhostSmall} onClick={() => saveTipoEdit(t.id)}>Guardar</button>
+                  <button type="button" style={styles.cancelBtnSmall} onClick={() => setEditingTipoId(null)}>Cancelar</button>
+                </>
+              ) : (
+                <>
+                  <div style={{ flex: 1, fontSize: 12.5 }}>{t.label}</div>
+                  <button type="button" style={styles.iconBtn} className="icon-btn" onClick={() => startEditTipo(t)} aria-label="Editar área"><Pencil size={14} /></button>
+                  <button type="button" style={styles.iconBtn} className="icon-btn" onClick={() => removeTipo(t.id)} aria-label="Eliminar área"><Trash2 size={14} /></button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={styles.climatePanel}>
+        <div style={styles.soilProfileLabel}>Espacios</div>
+        {spacesError && <p style={{ ...styles.climateError, marginTop: 8 }}>{spacesError}</p>}
+        {spaces.length === 0 ? (
+          <p style={{ ...styles.climateEmpty, marginTop: 8 }}>Todavía no tienes espacios creados. Puedes agregarlos desde la pestaña Inventario.</p>
+        ) : (
+          <div style={{ ...styles.logList, marginTop: 12 }}>
+            {spaces.map((s) => (
+              <div key={s.id} style={styles.logItem}>
+                {editingSpaceId === s.id ? (
+                  <>
+                    <input style={{ ...styles.input, flex: 1 }} value={editSpaceName} onChange={(e) => setEditSpaceName(e.target.value)} autoFocus />
+                    <button type="button" style={styles.addBtnGhostSmall} onClick={() => saveSpaceEdit(s.id)}>Guardar</button>
+                    <button type="button" style={styles.cancelBtnSmall} onClick={() => setEditingSpaceId(null)}>Cancelar</button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ flex: 1, fontSize: 12.5 }}>{s.nombre}</div>
+                    <button type="button" style={styles.iconBtn} className="icon-btn" onClick={() => startEditSpace(s)} aria-label="Editar espacio"><Pencil size={14} /></button>
+                    <button type="button" style={styles.iconBtn} className="icon-btn" onClick={() => removeSpace(s.id)} aria-label="Eliminar espacio"><Trash2 size={14} /></button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {hasLocalData && (
+        <div style={styles.climatePanel}>
+          <div style={styles.soilProfileLabel}>Datos locales pendientes de migrar</div>
+          <p style={{ ...styles.climateEmpty, marginTop: 8 }}>
+            Encontramos un inventario guardado en este navegador de antes de usar cuentas. Puedes subirlo a tu cuenta
+            ahora — se agregará a tu inventario actual sin duplicar tipos existentes.
+          </p>
+          {migrateMsg && <p style={{ fontSize: 12.5, marginTop: 8 }}>{migrateMsg}</p>}
+          <button type="button" style={{ ...styles.addBtn, marginTop: 10 }} onClick={migrateLocalData} disabled={migrating}>
+            {migrating ? <Loader2 size={16} className="spin" /> : null}
+            {migrating ? "Migrando…" : "Migrar datos locales"}
+          </button>
+        </div>
+      )}
+
+      <div style={styles.climatePanel}>
+        <div style={styles.soilProfileLabel}>Cuenta</div>
+        <form onSubmit={changePassword} style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <input type="password" style={{ ...styles.input, flex: "1 1 220px" }} placeholder="Nueva clave (mínimo 6 caracteres)"
+            value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+          <button type="submit" style={styles.addBtnGhostSmall} disabled={pwSaving}>{pwSaving ? "Guardando…" : "Cambiar clave"}</button>
+        </form>
+        {pwError && <p style={{ ...styles.climateError, marginTop: 8 }}>{pwError}</p>}
+        {pwMsg && <p style={{ fontSize: 12.5, marginTop: 8, color: "#2F5233" }}>{pwMsg}</p>}
+
+        <button type="button" style={{ ...styles.logoutBtn, marginTop: 16 }} onClick={onLogout}>Cerrar sesión</button>
+      </div>
+    </div>
+  );
+}
+
+const WEEKDAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function CalendarView({ plants, onOpenPlant }) {
+  const [cursor, setCursor] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d;
+  });
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+
+  const allTasks = [];
+  plants.forEach((p) => {
+    (p.eventos || []).forEach((ev) => {
+      if (ev.proximaFechaSugerida) allTasks.push({ ...ev, plantId: p.id, plantName: p.nombre });
+    });
+  });
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const in7Iso = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const tasksByDay = {};
+  allTasks.forEach((t) => {
+    if (!tasksByDay[t.proximaFechaSugerida]) tasksByDay[t.proximaFechaSugerida] = [];
+    tasksByDay[t.proximaFechaSugerida].push(t);
+  });
+
+  const overdue = allTasks
+    .filter((t) => t.proximaFechaSugerida < todayIso)
+    .sort((a, b) => a.proximaFechaSugerida.localeCompare(b.proximaFechaSugerida));
+  const upcoming = allTasks
+    .filter((t) => t.proximaFechaSugerida >= todayIso && t.proximaFechaSugerida <= in7Iso)
+    .sort((a, b) => a.proximaFechaSugerida.localeCompare(b.proximaFechaSugerida));
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startWeekday = new Date(year, month, 1).getDay();
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const monthLabel = cursor.toLocaleDateString("es-PE", { month: "long", year: "numeric" });
+
+  const renderTaskRow = (t, color) => {
+    const info = eventInfo(t.tipo);
+    const Icon = info.icon;
+    return (
+      <div key={t.id} style={{ ...styles.logItem, cursor: "pointer" }} onClick={() => onOpenPlant(t.plantId)}>
+        <Icon size={14} color={color} style={{ marginTop: 2, flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{t.plantName} · {info.label}</div>
+          <div style={{ fontSize: 11.5, color }}>{fmtFecha(t.proximaFechaSugerida)}</div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <div style={styles.climatePanel}>
+        <div style={styles.soilProfileLabel}><ClipboardList size={13} strokeWidth={2.5} /> Tareas vencidas y próximas</div>
+        {overdue.length === 0 && upcoming.length === 0 ? (
+          <p style={styles.climateEmpty}>
+            No hay tareas programadas. Al agregar un cuidado en la bitácora de una planta, indica cada cuántos días se
+            repite para que aparezca aquí.
+          </p>
+        ) : (
+          <>
+            {overdue.length > 0 && (
+              <>
+                <p style={{ ...styles.statsColTitle, color: "#8A3B1D", marginTop: 12 }}>Vencidas ({overdue.length})</p>
+                <div style={styles.logList}>{overdue.map((t) => renderTaskRow(t, "#8A3B1D"))}</div>
+              </>
+            )}
+            {upcoming.length > 0 && (
+              <>
+                <p style={{ ...styles.statsColTitle, marginTop: 14 }}>Próximas 7 días ({upcoming.length})</p>
+                <div style={styles.logList}>{upcoming.map((t) => renderTaskRow(t, "#6B4F2A"))}</div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      <div style={{ ...styles.climatePanel, marginTop: 16 }}>
+        <div style={styles.climateHeaderRow}>
+          <div style={styles.soilProfileLabel}><CloudSun size={13} strokeWidth={2.5} /> {monthLabel}</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button type="button" style={styles.cancelBtnSmall} onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Mes anterior">←</button>
+            <button type="button" style={styles.cancelBtnSmall} onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Mes siguiente">→</button>
+          </div>
+        </div>
+        <div style={styles.calendarWeekRow}>
+          {WEEKDAYS.map((d) => <div key={d} style={styles.calendarWeekday}>{d}</div>)}
+        </div>
+        <div style={styles.calendarGrid}>
+          {cells.map((d, i) => {
+            if (d === null) return <div key={i} style={styles.calendarCellEmpty} />;
+            const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+            const dayTasks = tasksByDay[iso] || [];
+            const isToday = iso === todayIso;
+            const isOverdue = iso < todayIso;
+            return (
+              <div key={i} style={{ ...styles.calendarCell, ...(isToday ? styles.calendarCellToday : {}) }}>
+                <div style={styles.calendarCellNum}>{d}</div>
+                {dayTasks.slice(0, 3).map((t) => (
+                  <div
+                    key={t.id}
+                    style={{ ...styles.calendarTaskChip, ...(isOverdue ? styles.calendarTaskChipOverdue : {}) }}
+                    onClick={() => onOpenPlant(t.plantId)}
+                    title={`${t.plantName} — ${eventInfo(t.tipo).label}`}
+                  >
+                    {t.plantName}
+                  </div>
+                ))}
+                {dayTasks.length > 3 && <div style={{ fontSize: 10, color: "#8A7857" }}>+{dayTasks.length - 3} más</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function PlantInventory({ onLogout }) {
+  const [ownerId, setOwnerId] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [tipos, setTipos] = useState(BASE_TIPOS);
+  const [spaces, setSpaces] = useState([]);
   const [plants, setPlants] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
@@ -475,33 +1223,60 @@ function PlantInventory({ onLogout }) {
   const [ubicacionClima, setUbicacionClima] = useState("Ica, Perú");
   const [addingTipo, setAddingTipo] = useState(false);
   const [newTipoName, setNewTipoName] = useState("");
+  const [addingSpace, setAddingSpace] = useState(false);
+  const [newSpaceName, setNewSpaceName] = useState("");
+  const [activeTab, setActiveTab] = useState("inventario");
+  const [transacciones, setTransacciones] = useState([]);
+  const [txFormOpen, setTxFormOpen] = useState(false);
+  const [txForm, setTxForm] = useState(emptyTxForm);
+  const [txFilterTipo, setTxFilterTipo] = useState("todos");
+  const [txFilterPlant, setTxFilterPlant] = useState("todas");
+  const [txFilterFrom, setTxFilterFrom] = useState("");
+  const [txFilterTo, setTxFilterTo] = useState("");
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const resPlants = await storage.get(PLANTS_KEY);
-        if (resPlants && resPlants.value) {
-          const parsedPlants = JSON.parse(resPlants.value);
-          let migrated = false;
-          const withDefaults = parsedPlants.map((p) => {
-            const care = CARE_INFO[p.tipo] || CARE_INFO.otra;
-            const next = { ...p };
-            if (!next.materiales) { next.materiales = (care.materiales || []).join(", "); migrated = true; }
-            if (!next.climaPreferido) { next.climaPreferido = care.climaPreferido; migrated = true; }
-            if (!next.adaptacion) { next.adaptacion = care.adaptacion; migrated = true; }
-            return next;
-          });
-          setPlants(withDefaults);
-          if (migrated) {
-            storage.set(PLANTS_KEY, JSON.stringify(withDefaults)).catch(() => {});
-          }
+        const { data: userData } = await supabase.auth.getUser();
+        const uid = userData?.user?.id;
+        setOwnerId(uid);
+        if (!uid) { setLoaded(true); return; }
+
+        const { data: profileRow } = await supabase.from("profiles").select("*").eq("id", uid).single();
+        setProfile(profileRow || null);
+
+        let tiposRows = await db.fetchPlantTypes();
+        if (tiposRows.length === 0) {
+          tiposRows = await db.seedDefaultPlantTypes(uid, BASE_TIPOS);
         }
-      } catch (e) {}
-      try {
-        const resTipos = await storage.get(TIPOS_KEY);
-        if (resTipos && resTipos.value) setTipos(JSON.parse(resTipos.value));
-      } catch (e) {}
+        setTipos(tiposRows);
+
+        const spacesRows = await db.fetchSpaces();
+        setSpaces(spacesRows);
+
+        const [plantsRows, eventosRows] = await Promise.all([db.fetchPlants(), db.fetchEventos()]);
+        const eventosByPlant = {};
+        eventosRows.forEach((ev) => {
+          if (!eventosByPlant[ev.plant_id]) eventosByPlant[ev.plant_id] = [];
+          eventosByPlant[ev.plant_id].push({
+            id: ev.id,
+            fecha: ev.fecha,
+            tipo: ev.tipo,
+            nota: ev.nota || "",
+            insumo: ev.insumo || "",
+            dosis: ev.dosis || "",
+            repiteCadaDias: ev.repite_cada_dias || null,
+            proximaFechaSugerida: ev.proxima_fecha_sugerida || null,
+          });
+        });
+        setPlants(plantsRows.map((row) => ({ ...fromDbPlant(row), eventos: eventosByPlant[row.id] || [] })));
+
+        const txRows = await db.fetchTransacciones();
+        setTransacciones(txRows);
+      } catch (e) {
+        setError("No se pudo cargar tu inventario. Intenta recargar la página.");
+      }
       try {
         const resClimate = await storage.get(CLIMATE_KEY);
         if (resClimate && resClimate.value) setClimate(JSON.parse(resClimate.value));
@@ -514,24 +1289,6 @@ function PlantInventory({ onLogout }) {
     })();
   }, []);
 
-  const persistPlants = async (next) => {
-    setPlants(next);
-    try {
-      await storage.set(PLANTS_KEY, JSON.stringify(next));
-    } catch (e) {
-      setError("No se pudo guardar el cambio. Intenta de nuevo.");
-    }
-  };
-
-  const persistTipos = async (next) => {
-    setTipos(next);
-    try {
-      await storage.set(TIPOS_KEY, JSON.stringify(next));
-    } catch (e) {
-      setError("No se pudo guardar la nueva área. Intenta de nuevo.");
-    }
-  };
-
   const persistUbicacion = async (next) => {
     setUbicacionClima(next);
     try {
@@ -539,31 +1296,44 @@ function PlantInventory({ onLogout }) {
     } catch (e) {}
   };
 
-  const addCustomTipo = () => {
+  const addCustomTipo = async () => {
     const label = newTipoName.trim();
     if (!label) return;
-    let id = slugify(label);
-    if (!id) id = "area-" + Date.now();
-    if (tipos.some((tp) => tp.id === id)) id = id + "-" + Date.now().toString().slice(-4);
-    const nuevo = {
-      id,
-      label,
-      color: pickColor(tipos),
-      sustrato: "Sustrato balanceado con buen drenaje; ajustar según la especie.",
-      estratos: [50, 50],
-    };
-    persistTipos([...tipos, nuevo]);
-    setNewTipoName("");
-    setAddingTipo(false);
+    try {
+      const nuevo = await db.createPlantType(ownerId, {
+        label,
+        color: pickColor(tipos),
+        sustrato: "Sustrato balanceado con buen drenaje; ajustar según la especie.",
+        estratos: [50, 50],
+      });
+      setTipos([...tipos, nuevo]);
+      setNewTipoName("");
+      setAddingTipo(false);
+    } catch (e) {
+      setError("No se pudo crear el área. Intenta de nuevo.");
+    }
+  };
+
+  const addCustomSpace = async () => {
+    const nombre = newSpaceName.trim();
+    if (!nombre) return;
+    try {
+      const nuevo = await db.createSpace(ownerId, { nombre });
+      setSpaces([...spaces, nuevo]);
+      setNewSpaceName("");
+      setAddingSpace(false);
+    } catch (e) {
+      setError("No se pudo crear el espacio. Intenta de nuevo.");
+    }
   };
 
   const openNew = () => {
-    const firstTipo = tipos[0]?.id || "otra";
-    const care = CARE_INFO[firstTipo] || CARE_INFO.otra;
+    const firstTipo = tipos[0];
+    const care = careInfoFor(firstTipo);
     setForm({
       ...emptyForm,
-      tipo: firstTipo,
-      sustrato: tipos[0]?.sustrato || "",
+      tipo: firstTipo?.id || "",
+      sustrato: firstTipo?.sustrato || "",
       climaPreferido: care.climaPreferido,
       adaptacion: care.adaptacion,
       materiales: (care.materiales || []).join(", "),
@@ -583,7 +1353,7 @@ function PlantInventory({ onLogout }) {
 
   const handleTipoChange = (tipoId) => {
     const info = tipoInfo(tipos, tipoId);
-    const care = CARE_INFO[tipoId] || CARE_INFO.otra;
+    const care = careInfoFor(info);
     setForm((f) => {
       const keepCustom = !!f.id || f.aiIdentified;
       return {
@@ -597,48 +1367,140 @@ function PlantInventory({ onLogout }) {
     });
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim()) return;
-    const clean = { ...form };
-    const isEdit = !!clean.id;
-    let next;
-    if (clean.id) {
-      next = plants.map((p) => (p.id === clean.id ? clean : p));
-    } else {
-      next = [...plants, { ...clean, id: Date.now().toString() }];
+    try {
+      let fotoUrl = form.imagen;
+      if (fotoUrl && fotoUrl.startsWith("data:")) {
+        fotoUrl = await db.uploadPlantPhoto(ownerId, fotoUrl);
+      }
+      const payload = {
+        nombre: form.nombre.trim(),
+        variedad: form.variedad || null,
+        tipo_id: form.tipo || null,
+        space_id: form.spaceId || null,
+        sustrato: form.sustrato || null,
+        materiales: form.materiales || null,
+        cuidados: form.cuidados || null,
+        clima_preferido: form.climaPreferido || null,
+        adaptacion: form.adaptacion || null,
+        ubicacion: form.ubicacion || null,
+        foto_url: fotoUrl || null,
+        fecha_recepcion: form.fechaRecepcion || null,
+        vivero_origen: form.viveroOrigen || null,
+        provincia_origen: form.provinciaOrigen || null,
+        notas: form.notas || null,
+        ai_identified: !!form.aiIdentified,
+      };
+      const isEdit = !!form.id;
+      const savedRow = isEdit ? await db.updatePlant(form.id, payload) : await db.createPlant(ownerId, payload);
+      const prevEventos = isEdit ? plants.find((p) => p.id === form.id)?.eventos || [] : [];
+      const savedPlant = { ...fromDbPlant(savedRow), eventos: prevEventos };
+      setPlants((prev) => (isEdit ? prev.map((p) => (p.id === savedPlant.id ? savedPlant : p)) : [...prev, savedPlant]));
+      closeForm();
+      setSuccessMsg(isEdit ? "Planta actualizada." : "Planta agregada al vivero.");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (err) {
+      setError("No se pudo guardar la planta. Intenta de nuevo.");
     }
-    persistPlants(next);
-    closeForm();
-    setSuccessMsg(isEdit ? "Planta actualizada." : "Planta agregada al vivero.");
-    setTimeout(() => setSuccessMsg(""), 3000);
   };
 
-  const handleDelete = (id) => { if (!window.confirm("Eliminar esta planta del inventario. Esta accion no se puede deshacer.")) return;
-    persistPlants(plants.filter((p) => p.id !== id));
-    setSuccessMsg("Planta eliminada.");
-    setTimeout(() => setSuccessMsg(""), 3000);
+  const handleDelete = async (id) => {
+    if (!window.confirm("Eliminar esta planta del inventario. Esta accion no se puede deshacer.")) return;
+    try {
+      await db.deletePlant(id);
+      setPlants((prev) => prev.filter((p) => p.id !== id));
+      setSuccessMsg("Planta eliminada.");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (e) {
+      setError("No se pudo eliminar la planta. Intenta de nuevo.");
+    }
   };
 
   const handleLogout = async () => {
+    if (onLogout) await onLogout();
+  };
+
+  const addEvento = async (plantId, evento) => {
     try {
-      await fetch("/api/logout", { method: "POST" });
-    } catch (e) {}
-    if (onLogout) onLogout();
+      const row = await db.createEvento(ownerId, plantId, {
+        fecha: evento.fecha,
+        tipo: evento.tipo,
+        nota: evento.nota || null,
+        insumo: evento.insumo || null,
+        dosis: evento.dosis || null,
+        repite_cada_dias: evento.repiteCadaDias || null,
+        proxima_fecha_sugerida: evento.proximaFechaSugerida || null,
+      });
+      const nuevoEvento = {
+        id: row.id,
+        fecha: row.fecha,
+        tipo: row.tipo,
+        nota: row.nota || "",
+        insumo: row.insumo || "",
+        dosis: row.dosis || "",
+        repiteCadaDias: row.repite_cada_dias || null,
+        proximaFechaSugerida: row.proxima_fecha_sugerida || null,
+      };
+      setPlants((prev) =>
+        prev.map((p) => (p.id === plantId ? { ...p, eventos: [...(p.eventos || []), nuevoEvento] } : p))
+      );
+    } catch (e) {
+      setError("No se pudo guardar el evento de bitácora.");
+    }
   };
 
-  const addEvento = (plantId, evento) => {
-    const next = plants.map((p) =>
-      p.id === plantId ? { ...p, eventos: [...(p.eventos || []), { ...evento, id: Date.now().toString() }] } : p
-    );
-    persistPlants(next);
+  const deleteEvento = async (plantId, eventoId) => {
+    try {
+      await db.deleteEvento(eventoId);
+      setPlants((prev) =>
+        prev.map((p) => (p.id === plantId ? { ...p, eventos: (p.eventos || []).filter((ev) => ev.id !== eventoId) } : p))
+      );
+    } catch (e) {
+      setError("No se pudo eliminar el evento de bitácora.");
+    }
   };
 
-  const deleteEvento = (plantId, eventoId) => {
-    const next = plants.map((p) =>
-      p.id === plantId ? { ...p, eventos: (p.eventos || []).filter((ev) => ev.id !== eventoId) } : p
-    );
-    persistPlants(next);
+  const openTxForm = (tipo) => {
+    setTxForm({ ...emptyTxForm, tipo, plantId: plants[0]?.id || "" });
+    setTxFormOpen(true);
+  };
+
+  const closeTxForm = () => {
+    setTxFormOpen(false);
+    setTxForm(emptyTxForm);
+  };
+
+  const handleTxSave = async (e) => {
+    e.preventDefault();
+    const monto = parseFloat(txForm.monto);
+    if (!txForm.plantId || !(monto >= 0)) return;
+    try {
+      const row = await db.createTransaccion(ownerId, {
+        tipo: txForm.tipo,
+        plant_id: txForm.plantId,
+        monto,
+        moneda: "PEN",
+        contraparte: txForm.contraparte || null,
+        fecha: txForm.fecha,
+        nota: txForm.nota || null,
+      });
+      setTransacciones((prev) => [row, ...prev]);
+
+      const plantPayload = { valor_actual: monto };
+      if (txForm.tipo === "venta") plantPayload.estado = "vendida";
+      const savedPlantRow = await db.updatePlant(txForm.plantId, plantPayload);
+      setPlants((prev) =>
+        prev.map((p) => (p.id === txForm.plantId ? { ...p, ...fromDbPlant(savedPlantRow), eventos: p.eventos } : p))
+      );
+
+      closeTxForm();
+      setSuccessMsg(txForm.tipo === "venta" ? "Venta registrada." : "Compra registrada.");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (err) {
+      setError("No se pudo guardar la transacción. Intenta de nuevo.");
+    }
   };
 
   const triggerUpload = () => {
@@ -661,7 +1523,7 @@ function PlantInventory({ onLogout }) {
 
                       const response = await fetch("/api/identify", {
                                   method: "POST",
-                                  headers: { "Content-Type": "application/json" },
+                                  headers: { "Content-Type": "application/json", ...(await authHeader()) },
                                   body: JSON.stringify({ mediaType, b64 }),
                       });
                       const data = await response.json();
@@ -737,7 +1599,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
 
       const response = await fetch("/api/claude", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
           max_tokens: 1000,
@@ -763,7 +1625,9 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
     }
   };
 
-  const filtered = plants.filter((p) => {
+  const activePlants = plants.filter((p) => p.estado !== "vendida");
+
+  const filtered = activePlants.filter((p) => {
     const q = query.toLowerCase();
     const matchesQuery = p.nombre.toLowerCase().includes(q) || (p.variedad || "").toLowerCase().includes(q);
     const matchesTipo = filterTipo === "todos" || p.tipo === filterTipo;
@@ -787,19 +1651,19 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
   const detailRisk = detailPlant ? riskById[detailPlant.id] : null;
 
   const tipoCounts = tipos
-    .map((tp) => ({ ...tp, count: plants.filter((p) => p.tipo === tp.id).length }))
+    .map((tp) => ({ ...tp, count: activePlants.filter((p) => p.tipo === tp.id).length }))
     .filter((tp) => tp.count > 0);
   const climaCounts = {};
-  plants.forEach((p) => {
+  activePlants.forEach((p) => {
     const c = (p.climaPreferido || "").trim();
     if (c) climaCounts[c] = (climaCounts[c] || 0) + 1;
   });
   const climaList = Object.entries(climaCounts).sort((a, b) => b[1] - a[1]).slice(0, 4);
   const INCIDENT_KEYWORDS = ["plaga", "insecto", "hongo", "enferm", "mancha", "marchit", "pulg", "araña", "arana", "ácaro", "acaro"];
-  const incidentPlants = plants.filter((p) => {
+  const incidentPlants = activePlants.filter((p) => {
     const notas = (p.notas || "").toLowerCase();
     const kw = INCIDENT_KEYWORDS.some((k) => notas.includes(k));
-    const evt = (p.eventos || []).some((e) => e.tipo === "plaga");
+    const evt = (p.eventos || []).some((e) => e.tipo === "control_plagas");
     return kw || evt;
   });
 
@@ -841,8 +1705,8 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={styles.statBox}>
-              <span style={styles.statNum}>{plants.length}</span>
-              <span style={styles.statLabel}>{plants.length === 1 ? "planta" : "plantas"}</span>
+              <span style={styles.statNum}>{activePlants.length}</span>
+              <span style={styles.statLabel}>{activePlants.length === 1 ? "planta" : "plantas"}</span>
             </div>
             <button type="button" style={styles.logoutBtn} onClick={handleLogout}>Cerrar sesión</button>
           </div>
@@ -896,7 +1760,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
             <div style={styles.statsCol}>
               <div style={styles.statsColTitle}><Bug size={12} /> Incidentes</div>
               {incidentPlants.length === 0 ? (
-                <p style={styles.climateEmpty}>Sin incidentes reportados. Agrega notas o eventos de "plaga" en cada planta para verlos aquí.</p>
+                <p style={styles.climateEmpty}>Sin incidentes reportados. Agrega notas o eventos de "control de plagas" en cada planta para verlos aquí.</p>
               ) : (
                 <>
                   <div style={styles.statsBigRow}>
@@ -982,6 +1846,32 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
         </div>
       </header>
 
+      <div style={styles.tabBar}>
+        <button type="button" style={{ ...styles.tabBtn, ...(activeTab === "inventario" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("inventario")}>Inventario</button>
+        <button type="button" style={{ ...styles.tabBtn, ...(activeTab === "calendario" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("calendario")}>Calendario</button>
+        <button type="button" style={{ ...styles.tabBtn, ...(activeTab === "transacciones" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("transacciones")}>Compras y ventas</button>
+        <button type="button" style={{ ...styles.tabBtn, ...(activeTab === "dashboard" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("dashboard")}>Dashboard</button>
+        <button type="button" style={{ ...styles.tabBtn, ...(activeTab === "config" ? styles.tabBtnActive : {}) }} onClick={() => setActiveTab("config")}>Configuración</button>
+      </div>
+
+      {activeTab === "dashboard" && (
+        <DashboardView plants={plants} tipos={tipos} spaces={spaces} transacciones={transacciones} />
+      )}
+
+      {activeTab === "config" && (
+        <ConfigView
+          ownerId={ownerId}
+          profile={profile}
+          tipos={tipos}
+          setTipos={setTipos}
+          spaces={spaces}
+          setSpaces={setSpaces}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {activeTab === "inventario" && (
+      <>
       {/* Toolbar */}
       <div style={styles.toolbar}>
         <div style={styles.searchWrap}>
@@ -1017,6 +1907,24 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
             <button type="button" style={styles.cancelBtnSmall} onClick={() => { setAddingTipo(false); setNewTipoName(""); }}>Cancelar</button>
           </div>
         )}
+        {!addingSpace ? (
+          <button type="button" style={styles.addBtnGhostSmall} onClick={() => setAddingSpace(true)}>
+            <Plus size={16} /> Nuevo espacio
+          </button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              style={{ ...styles.input, width: 170 }}
+              placeholder="Ej. Invernadero A"
+              value={newSpaceName}
+              onChange={(e) => setNewSpaceName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSpace(); } }}
+              autoFocus
+            />
+            <button type="button" style={styles.addBtnGhostSmall} onClick={addCustomSpace}>Agregar</button>
+            <button type="button" style={styles.cancelBtnSmall} onClick={() => { setAddingSpace(false); setNewSpaceName(""); }}>Cancelar</button>
+          </div>
+        )}
                 <button style={styles.addBtn} onClick={triggerUpload} disabled={identifying}>
           {identifying ? <Loader2 size={16} className="spin" /> : <Camera size={16} />}
           {identifying ? "Identificando…" : "Subir foto"}
@@ -1038,7 +1946,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
       {successMsg && <div style={styles.successBanner}>{successMsg}</div>}
 
       {/* Estado vacío global */}
-      {loaded && plants.length === 0 && (
+      {loaded && activePlants.length === 0 && (
         <div style={styles.empty}>
           <Sprout size={30} color="#A85C32" strokeWidth={1.5} />
           <p style={styles.emptyTitle}>Tu vivero está vacío</p>
@@ -1051,7 +1959,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
       )}
 
       {/* Sin resultados */}
-      {loaded && plants.length > 0 && filtered.length === 0 && (
+      {loaded && activePlants.length > 0 && filtered.length === 0 && (
         <div style={styles.empty}>
           <Sprout size={30} color="#A85C32" strokeWidth={1.5} />
           <p style={styles.emptyTitle}>Sin resultados</p>
@@ -1098,6 +2006,9 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
                           {risk && <span style={styles.riskTag}><AlertTriangle size={11} /> Riesgo hoy</span>}
                         </div>
                         <div style={styles.cardBody} onClick={() => setDetailPlantId(p.id)}>
+                          {spaces.find((s) => s.id === p.spaceId) && (
+                            <p style={styles.cardMeta}><MapPin size={12} /> {spaces.find((s) => s.id === p.spaceId).nombre}</p>
+                          )}
                           {p.ubicacion && <p style={styles.cardMeta}><MapPin size={12} /> {p.ubicacion}</p>}
 
                           {risk && (
@@ -1122,6 +2033,133 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
           );
         })}
       </div>
+      </>
+      )}
+
+      {activeTab === "calendario" && (
+        <div style={styles.areas}>
+          <CalendarView plants={plants} onOpenPlant={(plantId) => setLogPlantId(plantId)} />
+        </div>
+      )}
+
+      {activeTab === "transacciones" && (
+        <div style={styles.areas}>
+          <div style={styles.toolbar}>
+            <button style={styles.addBtn} onClick={() => openTxForm("compra")}><ShoppingCart size={16} /> Registrar compra</button>
+            <button style={styles.addBtn} onClick={() => openTxForm("venta")}><Coins size={16} /> Registrar venta</button>
+          </div>
+
+          <div style={styles.toolbar}>
+            <select style={styles.select} value={txFilterTipo} onChange={(e) => setTxFilterTipo(e.target.value)}>
+              <option value="todos">Todos los tipos</option>
+              <option value="compra">Compras</option>
+              <option value="venta">Ventas</option>
+            </select>
+            <select style={styles.select} value={txFilterPlant} onChange={(e) => setTxFilterPlant(e.target.value)}>
+              <option value="todas">Todas las plantas</option>
+              {plants.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+            </select>
+            <input type="date" style={styles.input} value={txFilterFrom} onChange={(e) => setTxFilterFrom(e.target.value)} aria-label="Desde" />
+            <input type="date" style={styles.input} value={txFilterTo} onChange={(e) => setTxFilterTo(e.target.value)} aria-label="Hasta" />
+          </div>
+
+          {(() => {
+            const filteredTx = transacciones.filter((t) => {
+              if (txFilterTipo !== "todos" && t.tipo !== txFilterTipo) return false;
+              if (txFilterPlant !== "todas" && t.plant_id !== txFilterPlant) return false;
+              if (txFilterFrom && t.fecha < txFilterFrom) return false;
+              if (txFilterTo && t.fecha > txFilterTo) return false;
+              return true;
+            });
+            if (filteredTx.length === 0) {
+              return (
+                <div style={styles.empty}>
+                  <ShoppingCart size={30} color="#A85C32" strokeWidth={1.5} />
+                  <p style={styles.emptyTitle}>Sin transacciones</p>
+                  <p style={styles.emptyText}>Registra una compra o venta para verla aquí.</p>
+                </div>
+              );
+            }
+            return (
+              <div style={styles.logList}>
+                {filteredTx.map((t) => {
+                  const plant = plants.find((p) => p.id === t.plant_id);
+                  const Icon = t.tipo === "venta" ? Coins : ShoppingCart;
+                  return (
+                    <div key={t.id} style={styles.logItem}>
+                      <Icon size={14} color={t.tipo === "venta" ? "#2F5233" : "#A85C32"} style={{ marginTop: 2, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600 }}>
+                          {t.tipo === "venta" ? "Venta" : "Compra"} · {plant ? plant.nombre : "Planta eliminada"} · S/ {Number(t.monto).toFixed(2)}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: "#5C4A2E" }}>
+                          {fmtFecha(t.fecha)}{t.contraparte ? ` — ${t.contraparte}` : ""}
+                        </div>
+                        {t.nota && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{t.nota}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {txFormOpen && (
+        <div style={styles.overlay} onClick={closeTxForm}>
+          <form style={styles.modal} onClick={(e) => e.stopPropagation()} onSubmit={handleTxSave} className="scroll-thin">
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>{txForm.tipo === "venta" ? "Registrar venta" : "Registrar compra"}</h2>
+              <button type="button" style={styles.closeBtn} onClick={closeTxForm} aria-label="Cerrar"><X size={18} /></button>
+            </div>
+
+            <label style={styles.label}>Tipo</label>
+            <select style={styles.input} value={txForm.tipo} onChange={(e) => setTxForm({ ...txForm, tipo: e.target.value })}>
+              <option value="compra">Compra</option>
+              <option value="venta">Venta</option>
+            </select>
+
+            <label style={styles.label}>Planta</label>
+            {plants.length === 0 ? (
+              <p style={styles.emptyText}>Todavía no tienes plantas en tu inventario.</p>
+            ) : (
+              <select style={styles.input} value={txForm.plantId} onChange={(e) => setTxForm({ ...txForm, plantId: e.target.value })} required>
+                {plants.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+            )}
+            <button type="button" style={{ ...styles.addBtnGhostSmall, marginTop: 8 }} onClick={() => { closeTxForm(); openNew(); }}>
+              <Plus size={14} /> Nueva planta
+            </button>
+
+            <div style={styles.formRow2}>
+              <div>
+                <label style={styles.label}>Monto (S/)</label>
+                <input type="number" step="0.01" min="0" style={styles.input} value={txForm.monto}
+                  onChange={(e) => setTxForm({ ...txForm, monto: e.target.value })} required />
+              </div>
+              <div>
+                <label style={styles.label}>Fecha</label>
+                <input type="date" style={styles.input} value={txForm.fecha}
+                  onChange={(e) => setTxForm({ ...txForm, fecha: e.target.value })} required />
+              </div>
+            </div>
+
+            <label style={styles.label}>{txForm.tipo === "venta" ? "Comprador" : "Vendedor / proveedor"} (opcional)</label>
+            <input style={styles.input} placeholder={txForm.tipo === "venta" ? "Nombre del comprador" : "Nombre del vendedor o proveedor"}
+              value={txForm.contraparte} onChange={(e) => setTxForm({ ...txForm, contraparte: e.target.value })} />
+
+            <label style={styles.label}>Nota (opcional)</label>
+            <textarea style={{ ...styles.input, minHeight: 50, resize: "vertical" }} value={txForm.nota}
+              onChange={(e) => setTxForm({ ...txForm, nota: e.target.value })} />
+
+            <div style={styles.modalActions}>
+              <button type="button" style={styles.cancelBtn} onClick={closeTxForm}>Cancelar</button>
+              <button type="submit" style={styles.saveBtn}>Guardar</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Form modal */}
       {formOpen && (
@@ -1179,17 +2217,32 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
             <textarea style={{ ...styles.input, minHeight: 50, resize: "vertical" }} placeholder="Si no es nativa de zonas áridas…"
               value={form.adaptacion} onChange={(e) => setForm({ ...form, adaptacion: e.target.value })} />
 
-            <div style={styles.formSection}><Home size={12} /> Llegada y ubicación</div>
-            <label style={styles.label}>Fecha de llegada</label>
-            <input type="date" style={styles.input} value={form.fechaLlegada}
-              onChange={(e) => setForm({ ...form, fechaLlegada: e.target.value })} />
+            <div style={styles.formSection}><Home size={12} /> Recepción y ubicación</div>
+            <div style={styles.formRow2}>
+              <div>
+                <label style={styles.label}>Fecha de recepción</label>
+                <input type="date" style={styles.input} value={form.fechaRecepcion}
+                  onChange={(e) => setForm({ ...form, fechaRecepcion: e.target.value })} />
+              </div>
+              <div>
+                <label style={styles.label}>Vivero de origen</label>
+                <input style={styles.input} placeholder="Ej. Vivero El Tambo" value={form.viveroOrigen}
+                  onChange={(e) => setForm({ ...form, viveroOrigen: e.target.value })} />
+              </div>
+            </div>
 
-            <label style={styles.label}>¿En qué situación llegó?</label>
-            <textarea style={{ ...styles.input, minHeight: 45, resize: "vertical" }} placeholder="Ej. llegó con hojas amarillas y raíz débil…"
-              value={form.situacionLlegada} onChange={(e) => setForm({ ...form, situacionLlegada: e.target.value })} />
+            <label style={styles.label}>Provincia de origen</label>
+            <input style={styles.input} placeholder="Ej. Ica" value={form.provinciaOrigen}
+              onChange={(e) => setForm({ ...form, provinciaOrigen: e.target.value })} />
+
+            <label style={styles.label}>Espacio</label>
+            <select style={styles.input} value={form.spaceId} onChange={(e) => setForm({ ...form, spaceId: e.target.value })}>
+              <option value="">Sin espacio asignado</option>
+              {spaces.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
 
             <label style={styles.label}>Ubicación (opcional)</label>
-            <input style={styles.input} placeholder="Ej. Patio, maceta grande" value={form.ubicacion}
+            <input style={styles.input} placeholder="Ej. Maceta grande, esquina norte" value={form.ubicacion}
               onChange={(e) => setForm({ ...form, ubicacion: e.target.value })} />
 
             <label style={styles.label}>URL de imagen (opcional, reemplaza la foto)</label>
@@ -1218,6 +2271,8 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
           plant={detailPlant}
           info={detailInfo}
           risk={detailRisk}
+          spaceName={spaces.find((s) => s.id === detailPlant.spaceId)?.nombre}
+          transacciones={transacciones.filter((t) => t.plant_id === detailPlant.id)}
           onClose={() => setDetailPlantId(null)}
           onEdit={() => { setDetailPlantId(null); openEdit(detailPlant); }}
           onLog={() => { setDetailPlantId(null); setLogPlantId(detailPlant.id); }}
@@ -1227,7 +2282,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
   );
 }
 
-function DetailModal({ plant, info, risk, onClose, onEdit, onLog }) {
+function DetailModal({ plant, info, risk, spaceName, transacciones, onClose, onEdit, onLog }) {
   const ult = lastEvento(plant);
   return (
     <div style={styles.overlay} onClick={onClose}>
@@ -1246,6 +2301,7 @@ function DetailModal({ plant, info, risk, onClose, onEdit, onLog }) {
           </div>
         )}
 
+        {spaceName && <p style={styles.cardMeta}><MapPin size={12} /> {spaceName}</p>}
         {plant.ubicacion && <p style={styles.cardMeta}><MapPin size={12} /> {plant.ubicacion}</p>}
 
         {risk && (
@@ -1255,15 +2311,30 @@ function DetailModal({ plant, info, risk, onClose, onEdit, onLog }) {
           </div>
         )}
 
-        {(plant.fechaLlegada || plant.situacionLlegada) && (
-          <div style={styles.arrivalBox}>
-            <Home size={13} color="#6B4F2A" />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 12.5 }}>
-                {plant.fechaLlegada ? `Llegó el ${fmtFecha(plant.fechaLlegada)}` : "Llegada registrada"}
+        <ArrivalBox plant={plant} />
+
+        {plant.estado === "vendida" && (
+          <div style={{ ...styles.aiBanner, background: "#E8DFC8", color: "#3C3120" }}>Vendida</div>
+        )}
+
+        {(plant.valorActual != null || transacciones.length > 0) && (
+          <div style={{ marginTop: 10 }}>
+            <div style={styles.cardSubstrateLabel}>Transacciones{plant.valorActual != null ? ` — valor actual S/ ${Number(plant.valorActual).toFixed(2)}` : ""}</div>
+            {transacciones.length === 0 ? (
+              <p style={styles.emptyText}>Sin transacciones registradas.</p>
+            ) : (
+              <div style={styles.logList}>
+                {transacciones.map((t) => (
+                  <div key={t.id} style={styles.logItem}>
+                    {t.tipo === "venta" ? <Coins size={14} color="#2F5233" style={{ marginTop: 2 }} /> : <ShoppingCart size={14} color="#A85C32" style={{ marginTop: 2 }} />}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{t.tipo === "venta" ? "Venta" : "Compra"} · S/ {Number(t.monto).toFixed(2)} · {fmtFecha(t.fecha)}</div>
+                      {t.contraparte && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{t.contraparte}</div>}
+                    </div>
+                  </div>
+                ))}
               </div>
-              {plant.situacionLlegada && <div style={{ fontSize: 12, color: "#5C4A2E" }}>{plant.situacionLlegada}</div>}
-            </div>
+            )}
           </div>
         )}
 
@@ -1295,8 +2366,8 @@ function DetailModal({ plant, info, risk, onClose, onEdit, onLog }) {
   );
 }
 
-function LoginScreen({ onSuccess }) {
-  const [username, setUsername] = useState("");
+function LoginScreen() {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
@@ -1306,15 +2377,9 @@ function LoginScreen({ onSuccess }) {
     setLoginError("");
     setLoggingIn(true);
     try {
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      if (res.ok) {
-        onSuccess();
-      } else {
-        setLoginError("Usuario o clave incorrectos.");
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setLoginError("Correo o clave incorrectos.");
       }
     } catch (err) {
       setLoginError("No se pudo conectar. Intenta de nuevo.");
@@ -1334,9 +2399,9 @@ function LoginScreen({ onSuccess }) {
       <form style={styles.loginCard} onSubmit={submit}>
         <div style={styles.loginEyebrow}>Ica, Perú — clima árido</div>
         <h1 style={styles.loginTitle}>Vivero</h1>
-        <p style={styles.loginSub}>Ingresa tu usuario y clave para ver el inventario.</p>
-        <label style={styles.label}>Usuario</label>
-        <input style={styles.input} value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />
+        <p style={styles.loginSub}>Ingresa tu correo y clave para ver tu inventario.</p>
+        <label style={styles.label}>Correo</label>
+        <input style={styles.input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus required />
         <label style={styles.label}>Clave</label>
         <input style={styles.input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         {loginError && <div style={{ ...styles.errorBanner, margin: "14px 0 0", maxWidth: "none" }}>{loginError}</div>}
@@ -1350,25 +2415,36 @@ function LoginScreen({ onSuccess }) {
 
 export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
-  const [authOk, setAuthOk] = useState(false);
+  const [session, setSession] = useState(null);
 
   useEffect(() => {
-    fetch("/api/session")
-      .then((res) => res.json())
-      .then((data) => setAuthOk(!!data.ok))
-      .catch(() => setAuthOk(false))
-      .finally(() => setAuthChecked(true));
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthChecked(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+    return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    fetch("/api/bootstrap-admin", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).catch(() => {});
+  }, [session]);
 
   if (!authChecked) {
     return <div style={styles.loginPage} />;
   }
 
-  if (!authOk) {
-    return <LoginScreen onSuccess={() => setAuthOk(true)} />;
+  if (!session) {
+    return <LoginScreen />;
   }
 
-  return <PlantInventory onLogout={() => setAuthOk(false)} />;
+  return <PlantInventory onLogout={() => supabase.auth.signOut()} />;
 }
 
 const styles = {
@@ -1414,6 +2490,34 @@ const styles = {
   riskList: { display: "flex", flexDirection: "column", gap: 8, marginTop: 12 },
   riskItem: { background: "#F8F1E0", border: "1px solid #E4DAC0", borderRadius: 8, padding: "8px 10px" },
   climateChecked: { fontSize: 10.5, color: "#8A7857", marginTop: 12, marginBottom: 0 },
+  tabBar: { maxWidth: 980, margin: "0 auto 16px", display: "flex", gap: 8 },
+  tabBtn: { background: "transparent", border: "1px solid #D8C9A0", color: "#6B4F2A", borderRadius: 20, padding: "7px 16px", fontSize: 13, fontWeight: 600 },
+  tabBtnActive: { background: "#211C14", color: "#F1E9D2", border: "1px solid #211C14" },
+  dashGrid: { maxWidth: 980, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 },
+  dashGrid2: { maxWidth: 980, margin: "16px auto 0", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 },
+  statTile: { background: "#fff", border: "1px solid #D8C9A0", borderRadius: 10, padding: "16px 18px" },
+  statTileLabel: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.04em", color: "#8A7857" },
+  statTileValue: { fontFamily: "'Fraunces', serif", fontSize: 36, fontWeight: 600, marginTop: 6, lineHeight: 1, color: "#211C14" },
+  statTileDelta: { fontSize: 12, color: "#6B4F2A", marginTop: 6 },
+  timelineChart: { display: "flex", alignItems: "flex-end", gap: 6, height: 140, marginTop: 14, padding: "18px 4px 0" },
+  timelineCol: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" },
+  timelineBar: { width: "100%", maxWidth: 24, background: "#2F5233", borderRadius: "4px 4px 0 0", minHeight: 2, position: "relative", display: "flex", justifyContent: "center" },
+  timelineBarLabel: { position: "absolute", top: -18, fontSize: 11, fontWeight: 600, color: "#211C14", whiteSpace: "nowrap" },
+  timelineColLabel: { fontSize: 10, color: "#8A7857", marginTop: 6, textTransform: "capitalize" },
+  barRow: { display: "grid", gridTemplateColumns: "110px 1fr 30px", alignItems: "center", gap: 8 },
+  barRowLabel: { fontSize: 12, color: "#3C3120", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  barTrack: { height: 10, background: "#E8DFC8", borderRadius: 5, overflow: "hidden" },
+  barFill: { height: "100%", borderRadius: "0 4px 4px 0" },
+  barRowValue: { fontSize: 12, fontWeight: 600, color: "#3C3120", textAlign: "right" },
+  calendarWeekRow: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginTop: 14 },
+  calendarWeekday: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", color: "#8A7857", textAlign: "center" },
+  calendarGrid: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginTop: 6 },
+  calendarCellEmpty: { minHeight: 68, background: "transparent" },
+  calendarCell: { minHeight: 68, background: "#F8F1E0", border: "1px solid #E4DAC0", borderRadius: 6, padding: "4px 5px", display: "flex", flexDirection: "column", gap: 2 },
+  calendarCellToday: { borderColor: "#A85C32", borderWidth: 2 },
+  calendarCellNum: { fontSize: 11, fontWeight: 600, color: "#3C3120" },
+  calendarTaskChip: { fontSize: 9.5, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 4, padding: "1px 4px", color: "#3C3120", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  calendarTaskChipOverdue: { background: "#F3D8C8", borderColor: "#E7C4A5", color: "#8A3B1D" },
   toolbar: { maxWidth: 980, margin: "0 auto 20px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" },
   searchWrap: { display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 8, padding: "9px 12px", flex: "1 1 220px" },
   searchInput: { border: "none", outline: "none", fontSize: 14, flex: 1, background: "transparent", color: "#211C14" },
