@@ -42,11 +42,24 @@ Bucket `plant-photos`, público para lectura, escritura solo dentro de la carpet
 
 ## Módulos de la app (pestañas)
 
-1. **Inventario**: CRUD de plantas, fotos a Supabase Storage (comprimidas en cliente, luego subidas — `db.uploadPlantPhoto`), identificación por IA, gestión rápida de áreas/espacios (crear desde el toolbar).
-2. **Calendario**: tareas vencidas/próximas (7 días) derivadas de `bitacora_eventos.proxima_fecha_sugerida`, vista de mes. Botón "Sugerencias de cuidado (IA)" en la bitácora de cada planta, mismo patrón que el clima (`/api/claude` + `web_search_20250305`).
+1. **Inventario**: CRUD de plantas, fotos a Supabase Storage (comprimidas en cliente, luego subidas — `db.uploadPlantPhoto`), identificación por IA, gestión rápida de áreas/espacios (crear desde el toolbar). Las plantas se agrupan por tipo en acordeones colapsables (clic en el encabezado); qué grupos quedaron colapsados se guarda en `localStorage` (`vivero:inventario-colapsados`, no en la base). Las plantas sin tipo (`tipo_id` null — ej. porque se borró su área) van en un grupo "Sin tipo" al final.
+2. **Calendario**: tareas vencidas/próximas (7 días) derivadas de `bitacora_eventos.proxima_fecha_sugerida`, vista de mes. El botón "Sugerencias de cuidado (IA)" en la bitácora de cada planta está deshabilitado a propósito (decisión de producto, `ANTHROPIC_API_KEY` inválida — ver sección de clima) y muestra "Esta función no está disponible por el momento" sin intentar la llamada.
 3. **Compras y ventas**: registrar compra/venta vinculando una planta existente (o crearla al vuelo); una venta marca `estado='vendida'` y la planta sale del inventario activo pero conserva su historial.
 4. **Dashboard**: filtro de rango de fechas; plantas activas + variación (altas − bajas por venta, reconstruido a partir de `created_at` y la primera venta de cada planta); evolución mensual del inventario (columnas); distribución por tipo (colores heredados de cada área) y por espacio; alertas activas (notas/eventos de plagas + bitácora vencida).
-5. **Configuración**: gestión de usuarios (solo `admin`), editar/eliminar áreas y espacios, cambiar contraseña, cerrar sesión, migración puntual de datos viejos de `localStorage` (`ica-plant-inventory`/`ica-plant-tipos`, versión pre-Supabase — `db.migrateLocalInventory`).
+5. **Configuración**: gestión de usuarios (solo `admin`), editar/eliminar áreas y espacios, cambiar contraseña, cerrar sesión, migración puntual de datos viejos de `localStorage` (`ica-plant-inventory`/`ica-plant-tipos`, versión pre-Supabase — `db.migrateLocalInventory`), y tema de colores por usuario (ver sección aparte).
+
+## Clima del día — Open-Meteo, no Anthropic
+
+El botón "Consultar clima de hoy" usa **Open-Meteo** (`api.open-meteo.com` para el pronóstico, `geocoding-api.open-meteo.com` para resolver el texto de ubicación a lat/lon), llamado directo desde el cliente — gratuito, sin API key, sin pasar por `/api/claude`. Esto reemplazó el flujo original que usaba Claude con `web_search`, porque `ANTHROPIC_API_KEY` en Vercel resultó inválida (confirmado: Anthropic devolvía 401 `authentication_error`) y el dueño del producto decidió no contratar ese API solo para esto.
+
+- `WMO_CODE_ES`: traduce el `weather_code` (estándar WMO) de Open-Meteo a una descripción corta en español.
+- `seasonFor(date, latitude)`: calcula la estación del año a partir del mes y el signo de la latitud (hemisferio norte/sur), sin depender de IA.
+- `evaluatePlantRisk(plant, weather)`: heurística simple basada en reglas (regex sobre `climaPreferido`/`adaptacion` de cada planta + umbrales de temperatura/humedad) que reemplaza el razonamiento que antes hacía el LLM. No es tan matizada como la evaluación original, pero es gratuita y funciona sin IA.
+- `/api/claude` sigue existiendo y en uso — la identificación de plantas por foto (`api/claude.js`) todavía depende de él, así que no se borró. Si `ANTHROPIC_API_KEY` nunca se arregla, ese flujo también fallará (no se tocó a propósito, fuera de alcance).
+
+## Tema de colores por usuario
+
+`profiles.theme_primary` / `theme_secondary` / `theme_accent` (hex, default = los colores de marca originales: `#2F5233` / `#211C14` / `#A85C32`). Al cargar el perfil, `applyTheme()` (en `App.jsx`) setea 3 CSS custom properties en `document.documentElement`: `--color-primary`, `--color-secondary`, `--color-accent`. Los estilos inline que representan elementos de marca (botones primarios `addBtn`/`saveBtn`, pestaña activa `tabBtnActive`, acentos `eyebrow`/`formSection`/marcas de agua/día actual del calendario) usan `var(--color-x, <default>)` — el fallback importa porque la pantalla de login (sin sesión todavía) y el primer render nunca tienen el tema del usuario disponible. Los colores por tipo de planta (`plant_types.color`, usados en `cardStripe`, badges, etc.) son un sistema de personalización aparte y NO se tocan por el tema global. Configuración → Apariencia tiene vista previa en vivo (cambia las CSS vars al mover el selector, antes de guardar) y un botón para restaurar los defaults.
 
 ## Flujo de identificación de planta por foto
 
@@ -71,7 +84,7 @@ Nota: `api/identify.js` (PlantNet) sigue implementado pero no conectado desde la
 
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`: cliente (prefijo `VITE_` para que Vite las exponga al navegador).
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`: solo funciones serverless.
-- `ANTHROPIC_API_KEY`: usada por `api/claude.js`.
+- `ANTHROPIC_API_KEY`: usada por `api/claude.js` (identificación de plantas por foto). **Actualmente inválida en producción** (401 de Anthropic) — decisión consciente de no pagarla; el clima ya no depende de esto (ver Open-Meteo arriba), pero la identificación por foto y las sugerencias de IA en bitácora siguen rotas hasta que se resuelva.
 - `PLANTNET_API_KEY`: usada por `api/identify.js`, endpoint no conectado actualmente.
 - Para desarrollo local: copiar `.env.example` a `.env.local` (gitignored) y completar.
 
@@ -80,3 +93,4 @@ Nota: `api/identify.js` (PlantNet) sigue implementado pero no conectado desde la
 - `api/identify.js` (PlantNet) está implementado pero no integrado a la interfaz.
 - El Dashboard reconstruye el estado histórico del inventario a partir de `created_at` de cada planta y la fecha de su primera venta — no hay una tabla de snapshots, así que "plantas activas a la fecha X" es siempre derivado, no almacenado.
 - Las alertas del Dashboard usan el estado actual (hoy), no se filtran por el rango de fechas del Dashboard — es una decisión de producto, no una limitación técnica (no tendría mucho sentido preguntar "qué alertas había hace 3 meses" con los datos que se guardan hoy).
+- La identificación de plantas por foto (botón "Subir foto") sigue dependiendo de `/api/claude` con la misma `ANTHROPIC_API_KEY` inválida que rompía el clima — o sea, hoy también está rota en producción. No se arregló porque quedó fuera de alcance explícito del pedido que sí resolvió el clima; si se decide no pagar Anthropic nunca, este flujo necesitaría el mismo tipo de reemplazo (otro proveedor gratuito, o quitar el botón).

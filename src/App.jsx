@@ -3,7 +3,7 @@ import {
   Search, Plus, X, Pencil, Trash2, Leaf, Sprout, MapPin, Sun,
   Camera, Loader2, Sparkles, Droplet, Compass, ClipboardList,
   Home, Bug, Scissors, Layers, Droplets, FileText, Clock,
-  CloudSun, RefreshCw, AlertTriangle, Flower2, ShoppingCart, Coins,
+  CloudSun, RefreshCw, AlertTriangle, Flower2, ShoppingCart, Coins, ChevronDown,
 } from "lucide-react";
 import { storage } from "./storage.js";
 import { supabase } from "./supabaseClient.js";
@@ -13,6 +13,20 @@ async function authHeader() {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// Colores de marca reales de la app (mismos defaults que supabase/schema.sql).
+const DEFAULT_THEME = {
+  theme_primary: "#2F5233",
+  theme_secondary: "#211C14",
+  theme_accent: "#A85C32",
+};
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  root.style.setProperty("--color-primary", theme?.theme_primary || DEFAULT_THEME.theme_primary);
+  root.style.setProperty("--color-secondary", theme?.theme_secondary || DEFAULT_THEME.theme_secondary);
+  root.style.setProperty("--color-accent", theme?.theme_accent || DEFAULT_THEME.theme_accent);
 }
 
 // ---- Categorías base, con sustrato pensado para el clima árido de Ica ----
@@ -298,6 +312,17 @@ const eventInfo = (id) => EVENT_TYPES.find((e) => e.id === id) || EVENT_TYPES[EV
 
 const CLIMATE_KEY = "ica-plant-climate";
 const LOCATION_KEY = "ica-plant-location";
+const COLLAPSED_GROUPS_KEY = "vivero:inventario-colapsados";
+const SIN_TIPO_ID = "__sin_tipo__";
+
+function loadCollapsedGroups() {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_GROUPS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch (e) {
+    return new Set();
+  }
+}
 
 const emptyForm = {
   id: null,
@@ -357,6 +382,93 @@ function fmtFecha(iso) {
   } catch (e) {
     return iso;
   }
+}
+
+// ---- Clima vía Open-Meteo (gratuito, sin API key) ----
+
+const ICA_LAT = -14.0678;
+const ICA_LON = -75.7286;
+
+const WMO_CODE_ES = {
+  0: "despejado", 1: "mayormente despejado", 2: "parcialmente nublado", 3: "nublado",
+  45: "neblina", 48: "neblina con escarcha",
+  51: "llovizna ligera", 53: "llovizna moderada", 55: "llovizna intensa",
+  56: "llovizna helada ligera", 57: "llovizna helada intensa",
+  61: "lluvia ligera", 63: "lluvia moderada", 65: "lluvia intensa",
+  66: "lluvia helada ligera", 67: "lluvia helada intensa",
+  71: "nevada ligera", 73: "nevada moderada", 75: "nevada intensa", 77: "granizo pequeño",
+  80: "chubascos ligeros", 81: "chubascos moderados", 82: "chubascos violentos",
+  85: "chubascos de nieve ligeros", 86: "chubascos de nieve intensos",
+  95: "tormenta eléctrica", 96: "tormenta con granizo ligero", 99: "tormenta con granizo intenso",
+};
+
+function weatherDescEs(code) {
+  return WMO_CODE_ES[code] || "condiciones variables";
+}
+
+function seasonFor(date, latitude) {
+  const month = date.getMonth() + 1;
+  const isNorth = latitude >= 0;
+  if ([12, 1, 2].includes(month)) return isNorth ? "invierno" : "verano";
+  if ([3, 4, 5].includes(month)) return isNorth ? "primavera" : "otoño";
+  if ([6, 7, 8].includes(month)) return isNorth ? "verano" : "invierno";
+  return isNorth ? "otoño" : "primavera";
+}
+
+async function geocodeLocation(query) {
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=es`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("No se pudo geocodificar la ubicación.");
+  const data = await res.json();
+  const first = data.results && data.results[0];
+  if (!first) return null;
+  return {
+    lat: first.latitude,
+    lon: first.longitude,
+    label: [first.name, first.admin1, first.country].filter(Boolean).join(", "),
+  };
+}
+
+async function fetchCurrentWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m&timezone=America%2FLima`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("No se pudo consultar el pronóstico.");
+  const data = await res.json();
+  if (!data.current) throw new Error("Respuesta de clima sin datos.");
+  return data.current;
+}
+
+// Heurística simple basada en reglas (sin IA): compara la temperatura y
+// humedad reales contra las palabras clave que ya describen el clima
+// preferido/adaptación de cada planta (texto libre, escrito a mano o por la
+// identificación por IA original). No reemplaza el juicio de un experto,
+// pero da una señal razonable sin depender de un servicio de pago.
+function evaluatePlantRisk(plant, weather) {
+  const texto = `${plant.climaPreferido || ""} ${plant.adaptacion || ""}`.toLowerCase();
+  const prefiereHumedo = /h[uú]med|tropical|lluvi/i.test(texto);
+  const prefiereFrio = /fr[ií]o|templado|monta[ñn]/i.test(texto);
+  const prefiereCalido = /c[aá]lid|[aá]rid|seco|desért/i.test(texto);
+  const risks = [];
+
+  if (weather.tempC >= 32 && !prefiereCalido) {
+    risks.push({
+      riesgo: `Calor fuerte hoy (${Math.round(weather.tempC)}°C) y esta planta no está descrita como adaptada a climas cálidos o áridos.`,
+      sugerencia: "Ubicar en sombra parcial y regar en las horas más frescas del día.",
+    });
+  }
+  if (weather.tempC <= 12 && (prefiereCalido || prefiereHumedo) && !prefiereFrio) {
+    risks.push({
+      riesgo: `Temperatura baja hoy (${Math.round(weather.tempC)}°C) para una planta de clima cálido o tropical.`,
+      sugerencia: "Protegerla del frío, cubrirla o moverla a un lugar más abrigado.",
+    });
+  }
+  if (weather.humidity <= 30 && prefiereHumedo) {
+    risks.push({
+      riesgo: `Humedad muy baja hoy (${Math.round(weather.humidity)}%) para una planta que prefiere ambientes húmedos.`,
+      sugerencia: "Nebulizar las hojas o acercar una bandeja con agua para subir la humedad ambiental.",
+    });
+  }
+  return risks;
 }
 
 function fileToCompressedDataUrl(file, maxDim = 640, quality = 0.72) {
@@ -445,45 +557,12 @@ function LogModal({ plant, onClose, onAdd, onDelete }) {
     setRepiteCadaDias("");
   };
 
+  // Esta función dependía de /api/claude (Anthropic) — deshabilitada a propósito
+  // por decisión del dueño del producto (no se contrató el API de pago). Se deja
+  // el botón visible con un mensaje claro en vez de intentar la llamada y fallar.
   const fetchSuggestion = async () => {
-    setSuggestLoading(true);
     setSuggestError("");
-    setSuggestion("");
-    try {
-      const historial = eventos
-        .map((ev) => {
-          const info = eventInfo(ev.tipo);
-          const detalle = [info.label];
-          if (ev.insumo) detalle.push(ev.insumo + (ev.dosis ? ` (${ev.dosis})` : ""));
-          if (ev.nota) detalle.push(ev.nota);
-          return `${fmtFecha(ev.fecha)} — ${detalle.join(": ")}`;
-        })
-        .join("\n") || "Sin eventos registrados todavía.";
-      const prompt = `Planta: ${plant.nombre}${plant.variedad ? ` (${plant.variedad})` : ""}, en un vivero doméstico de Ica, Perú (clima árido, costero, hemisferio sur).
-Cuidados generales conocidos: ${plant.cuidados || "no especificados"}.
-Historial reciente de bitácora:
-${historial}
-
-Busca si hay plagas o cuidados de temporada relevantes ahora mismo para esta especie en Ica, y da hasta 3 recomendaciones breves y accionables de cuidado para las próximas semanas, considerando el historial. Responde en español, en 2-4 frases, directo y práctico, sin formato JSON.`;
-      const response = await fetch("/api/claude", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeader()) },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 500,
-          messages: [{ role: "user", content: prompt }],
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-        }),
-      });
-      const data = await response.json();
-      const text = (data.content || []).map((b) => b.text || "").join("\n").trim();
-      if (!text) throw new Error("sin respuesta");
-      setSuggestion(text);
-    } catch (err) {
-      setSuggestError("No se pudo obtener una recomendación ahora. Intenta de nuevo.");
-    } finally {
-      setSuggestLoading(false);
-    }
+    setSuggestion("Esta función no está disponible por el momento.");
   };
 
   return (
@@ -762,8 +841,53 @@ function DashboardView({ plants, tipos, spaces, transacciones }) {
   );
 }
 
-function ConfigView({ ownerId, profile, tipos, setTipos, spaces, setSpaces, onLogout }) {
+function ConfigView({ ownerId, profile, setProfile, tipos, setTipos, spaces, setSpaces, onLogout }) {
   const isAdmin = profile?.role === "admin";
+
+  // ---- apariencia (tema de colores) ----
+  const [themePrimary, setThemePrimary] = useState(profile?.theme_primary || DEFAULT_THEME.theme_primary);
+  const [themeSecondary, setThemeSecondary] = useState(profile?.theme_secondary || DEFAULT_THEME.theme_secondary);
+  const [themeAccent, setThemeAccent] = useState(profile?.theme_accent || DEFAULT_THEME.theme_accent);
+  const [themeMsg, setThemeMsg] = useState("");
+  const [themeSaving, setThemeSaving] = useState(false);
+
+  const previewTheme = (primary, secondary, accent) => applyTheme({ theme_primary: primary, theme_secondary: secondary, theme_accent: accent });
+
+  const saveTheme = async () => {
+    setThemeSaving(true);
+    setThemeMsg("");
+    try {
+      const updated = await db.updateProfileTheme(ownerId, {
+        theme_primary: themePrimary,
+        theme_secondary: themeSecondary,
+        theme_accent: themeAccent,
+      });
+      if (setProfile) setProfile((prev) => ({ ...prev, ...updated }));
+      setThemeMsg("Tema guardado.");
+    } catch (e) {
+      setThemeMsg("No se pudo guardar el tema. Intenta de nuevo.");
+    } finally {
+      setThemeSaving(false);
+    }
+  };
+
+  const resetTheme = async () => {
+    setThemePrimary(DEFAULT_THEME.theme_primary);
+    setThemeSecondary(DEFAULT_THEME.theme_secondary);
+    setThemeAccent(DEFAULT_THEME.theme_accent);
+    previewTheme(DEFAULT_THEME.theme_primary, DEFAULT_THEME.theme_secondary, DEFAULT_THEME.theme_accent);
+    setThemeSaving(true);
+    setThemeMsg("");
+    try {
+      const updated = await db.updateProfileTheme(ownerId, DEFAULT_THEME);
+      if (setProfile) setProfile((prev) => ({ ...prev, ...updated }));
+      setThemeMsg("Restaurado a los valores por defecto.");
+    } catch (e) {
+      setThemeMsg("No se pudo restaurar el tema. Intenta de nuevo.");
+    } finally {
+      setThemeSaving(false);
+    }
+  };
 
   // ---- cambiar contraseña ----
   const [newPassword, setNewPassword] = useState("");
@@ -940,6 +1064,32 @@ function ConfigView({ ownerId, profile, tipos, setTipos, spaces, setSpaces, onLo
 
   return (
     <div style={styles.areas}>
+      <div style={styles.climatePanel}>
+        <div style={styles.soilProfileLabel}>Apariencia</div>
+        <div style={styles.themeRow}>
+          <div style={styles.themeSwatch}>
+            <label style={styles.label}>Color principal</label>
+            <input type="color" style={styles.colorInput} value={themePrimary}
+              onChange={(e) => { setThemePrimary(e.target.value); previewTheme(e.target.value, themeSecondary, themeAccent); }} />
+          </div>
+          <div style={styles.themeSwatch}>
+            <label style={styles.label}>Color secundario</label>
+            <input type="color" style={styles.colorInput} value={themeSecondary}
+              onChange={(e) => { setThemeSecondary(e.target.value); previewTheme(themePrimary, e.target.value, themeAccent); }} />
+          </div>
+          <div style={styles.themeSwatch}>
+            <label style={styles.label}>Color de acento</label>
+            <input type="color" style={styles.colorInput} value={themeAccent}
+              onChange={(e) => { setThemeAccent(e.target.value); previewTheme(themePrimary, themeSecondary, e.target.value); }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          <button type="button" style={styles.addBtnGhostSmall} onClick={saveTheme} disabled={themeSaving}>Guardar cambios</button>
+          <button type="button" style={styles.cancelBtnSmall} onClick={resetTheme} disabled={themeSaving}>Restaurar valores por defecto</button>
+        </div>
+        {themeMsg && <p style={{ fontSize: 12.5, marginTop: 8, color: "#5C4A2E" }}>{themeMsg}</p>}
+      </div>
+
       {isAdmin && (
         <div style={styles.climatePanel}>
           <div style={styles.climateHeaderRow}>
@@ -1226,6 +1376,7 @@ function PlantInventory({ onLogout }) {
   const [addingSpace, setAddingSpace] = useState(false);
   const [newSpaceName, setNewSpaceName] = useState("");
   const [activeTab, setActiveTab] = useState("inventario");
+  const [collapsedGroups, setCollapsedGroups] = useState(loadCollapsedGroups);
   const [transacciones, setTransacciones] = useState([]);
   const [txFormOpen, setTxFormOpen] = useState(false);
   const [txForm, setTxForm] = useState(emptyTxForm);
@@ -1245,6 +1396,7 @@ function PlantInventory({ onLogout }) {
 
         const { data: profileRow } = await supabase.from("profiles").select("*").eq("id", uid).single();
         setProfile(profileRow || null);
+        applyTheme(profileRow);
 
         let tiposRows = await db.fetchPlantTypes();
         if (tiposRows.length === 0) {
@@ -1422,6 +1574,18 @@ function PlantInventory({ onLogout }) {
     if (onLogout) await onLogout();
   };
 
+  const toggleGroup = (id) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify([...next]));
+      } catch (e) {}
+      return next;
+    });
+  };
+
   const addEvento = async (plantId, evento) => {
     try {
       const row = await db.createEvento(ownerId, plantId, {
@@ -1563,63 +1727,53 @@ function PlantInventory({ onLogout }) {
     setClimateError("");
     setClimateLoading(true);
     try {
-      const todayStr = new Date().toLocaleDateString("es-PE", {
-        weekday: "long", year: "numeric", month: "long", day: "numeric",
+      const lugarTexto = ubicacionClima && ubicacionClima.trim() ? ubicacionClima.trim() : "Ica, Perú";
+      let lat = ICA_LAT;
+      let lon = ICA_LON;
+      let lugarResuelto = "Ica, Perú";
+      let ubicacionNoEncontrada = false;
+
+      try {
+        const geo = await geocodeLocation(lugarTexto);
+        if (geo) {
+          lat = geo.lat;
+          lon = geo.lon;
+          lugarResuelto = geo.label;
+        } else {
+          ubicacionNoEncontrada = true;
+        }
+      } catch (e) {
+        ubicacionNoEncontrada = true;
+      }
+
+      const current = await fetchCurrentWeather(lat, lon);
+      const tempC = current.temperature_2m;
+      const humidity = current.relative_humidity_2m;
+      const desc = weatherDescEs(current.weather_code);
+      const estacion = seasonFor(new Date(), lat);
+
+      const plantasEnRiesgo = [];
+      plants.forEach((p) => {
+        evaluatePlantRisk(p, { tempC, humidity }).forEach((r) => {
+          plantasEnRiesgo.push({ id: p.id, nombre: p.nombre, ...r });
+        });
       });
-      const lugar = ubicacionClima && ubicacionClima.trim() ? ubicacionClima.trim() : "Ica, Perú";
-      const listStr = plants
-        .map((p) => {
-          const t = tipoInfo(tipos, p.tipo);
-          const partes = [`id:${p.id} — ${p.nombre}${p.variedad ? " (" + p.variedad + ")" : ""} — área: ${t.label}`];
-          if (p.climaPreferido) partes.push(`clima natural: ${p.climaPreferido}`);
-          if (p.ubicacion) partes.push(`ubicación actual: ${p.ubicacion}`);
-          if (p.adaptacion) partes.push(`medidas de adaptación ya tomadas: ${p.adaptacion}`);
-          return partes.join(" — ");
-        })
-        .join("\n");
 
-      const prompt = `Hoy es ${todayStr}. Ubicación: ${lugar}.
-Busca en internet el pronóstico del clima de hoy para esa ubicación: temperatura máxima, mínima y humedad aproximada. Determina también la estación del año actual según el hemisferio correspondiente a esa ubicación.
-
-Luego revisa esta lista de plantas de un vivero doméstico, algunas de las cuales ya podrían estar acondicionadas o ubicadas en un lugar protegido:
-${listStr}
-
-Evalúa si el clima de hoy (incluyendo posibles contrastes entre día y noche, o entre la estación esperada y el clima real, por ejemplo frío o calor fuera de lo normal para la temporada) puede afectar a alguna de estas plantas — ten en cuenta su ubicación actual y las medidas de adaptación ya tomadas antes de marcarla en riesgo — y qué debería hacer la persona para protegerlas.
-
-Responde con un objeto JSON válido (puedes explicar tu búsqueda antes si quieres, pero el JSON debe aparecer completo y una sola vez, al final), con este formato exacto:
-{
-"resumen_clima": "resumen breve del clima de hoy en esa ubicación (máx 2 frases)",
-"estacion": "estación actual, ej: invierno",
-"alerta_general": "frase breve si hay algo climático notable hoy (contrastes, calor, frío, humedad); cadena vacía si no hay nada relevante",
-"plantas_en_riesgo": [
-{"id": "el id exacto de la planta tal como aparece en la lista", "nombre": "nombre de la planta", "riesgo": "qué le puede afectar hoy (máx 1-2 frases)", "sugerencia": "qué hacer para protegerla (máx 1-2 frases)"}
-]
-}
-Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
-
-      const response = await fetch("/api/claude", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(await authHeader()) },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }],
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-        }),
-      });
-      const data = await response.json();
-      const respText = (data.content || []).map((b) => b.text || "").join("\n");
-      const firstBrace = respText.indexOf("{");
-      const lastBrace = respText.lastIndexOf("}");
-      if (firstBrace === -1 || lastBrace === -1) throw new Error("sin JSON");
-      const result = JSON.parse(respText.slice(firstBrace, lastBrace + 1));
-      const climateObj = { ...result, checkedAt: new Date().toISOString() };
+      const climateObj = {
+        resumen_clima: `${desc.charAt(0).toUpperCase() + desc.slice(1)}, ${Math.round(tempC)}°C, ${Math.round(humidity)}% de humedad en ${lugarResuelto}.`,
+        estacion,
+        alerta_general: ubicacionNoEncontrada
+          ? `No encontramos "${lugarTexto}" — mostrando el clima de Ica, Perú.`
+          : "",
+        plantas_en_riesgo: plantasEnRiesgo,
+        checkedAt: new Date().toISOString(),
+      };
       setClimate(climateObj);
       try {
         await storage.set(CLIMATE_KEY, JSON.stringify(climateObj));
       } catch (e) {}
     } catch (err) {
-      setClimateError("No se pudo consultar el clima ahora. Intenta de nuevo en un momento.");
+      setClimateError("No se pudo consultar el clima ahora. Revisa tu conexión e intenta de nuevo.");
     } finally {
       setClimateLoading(false);
     }
@@ -1644,6 +1798,70 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
   (climate?.plantas_en_riesgo || []).forEach((a) => {
     if (a.id) riskById[a.id] = a;
   });
+
+  const sinTipoPlants = filtered.filter((p) => !tipos.some((t) => t.id === p.tipo));
+
+  const renderPlantCard = (p) => {
+    const info = tipoInfo(tipos, p.tipo);
+    const risk = riskById[p.id];
+    return (
+      <div key={p.id} style={{ ...styles.card, ...(risk ? styles.cardAtRisk : {}) }} className="plant-card">
+        <div style={{ ...styles.cardStripe, background: info.color }} />
+        <div style={styles.cardImageWrap} onClick={() => setDetailPlantId(p.id)}>
+          {p.imagen ? (
+            <img src={p.imagen} alt={p.nombre} style={styles.cardImage} />
+          ) : (
+            <div style={{ ...styles.cardImagePlaceholder, background: info.color + "22" }}>
+              <Leaf size={26} color={info.color} strokeWidth={1.5} />
+            </div>
+          )}
+          <div style={styles.cardImageOverlay}>
+            <h3 style={styles.cardNameOnImage}>{p.nombre}</h3>
+            {p.variedad && <p style={styles.cardVarietyOnImage}>{p.variedad}</p>}
+          </div>
+          {p.aiIdentified && <span style={styles.aiTag}><Sparkles size={11} /> IA</span>}
+          {risk && <span style={styles.riskTag}><AlertTriangle size={11} /> Riesgo hoy</span>}
+        </div>
+        <div style={styles.cardBody} onClick={() => setDetailPlantId(p.id)}>
+          {spaces.find((s) => s.id === p.spaceId) && (
+            <p style={styles.cardMeta}><MapPin size={12} /> {spaces.find((s) => s.id === p.spaceId).nombre}</p>
+          )}
+          {p.ubicacion && <p style={styles.cardMeta}><MapPin size={12} /> {p.ubicacion}</p>}
+
+          {risk && (
+            <div style={styles.riskBox}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A3B1D" }}>{risk.riesgo}</div>
+              <div style={{ fontSize: 11.5, color: "#5C4A2E", marginTop: 2 }}>{risk.sugerencia}</div>
+            </div>
+          )}
+        </div>
+        <div style={styles.cardActions}>
+          <button style={styles.iconBtn} className="icon-btn" onClick={(e) => { e.stopPropagation(); setLogPlantId(p.id); }} aria-label="Ver bitácora"><ClipboardList size={14} /></button>
+          <button style={styles.iconBtn} className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(p); }} aria-label="Editar planta"><Pencil size={14} /></button>
+          <button style={styles.iconBtn} className="icon-btn" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} aria-label="Eliminar planta"><Trash2 size={14} /></button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderGroupHeader = (id, dotColor, label, count) => {
+    const isCollapsed = collapsedGroups.has(id);
+    return (
+      <div
+        style={styles.areaHeader}
+        onClick={() => toggleGroup(id)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={!isCollapsed}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleGroup(id); } }}
+      >
+        <ChevronDown size={16} color="#6B4F2A" style={{ flexShrink: 0, transition: "transform 0.15s ease", transform: isCollapsed ? "rotate(-90deg)" : "none" }} />
+        <span style={{ ...styles.areaDot, background: dotColor }} />
+        <h2 style={styles.areaTitle}>{label}</h2>
+        <span style={styles.areaCount}>{count}</span>
+      </div>
+    );
+  };
 
   const logPlant = logPlantId ? plants.find((p) => p.id === logPlantId) : null;
   const detailPlant = detailPlantId ? plants.find((p) => p.id === detailPlantId) : null;
@@ -1862,6 +2080,7 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
         <ConfigView
           ownerId={ownerId}
           profile={profile}
+          setProfile={setProfile}
           tipos={tipos}
           setTipos={setTipos}
           spaces={spaces}
@@ -1972,66 +2191,29 @@ Si ninguna planta corre riesgo hoy, usa "plantas_en_riesgo": [].`;
         {loaded && filtered.length > 0 && visibleTipos.map((t) => {
           const tipoPlants = filtered.filter((p) => p.tipo === t.id);
           if (filterTipo === "todos" && tipoPlants.length === 0 && !BASE_IDS.includes(t.id)) return null;
+          const isCollapsed = collapsedGroups.has(t.id);
           return (
             <section key={t.id} style={styles.area}>
-              <div style={styles.areaHeader}>
-                <span style={{ ...styles.areaDot, background: t.color }} />
-                <h2 style={styles.areaTitle}>{t.label}</h2>
-                <span style={styles.areaCount}>{tipoPlants.length}</span>
-              </div>
-              {tipoPlants.length === 0 ? (
-                <p style={styles.areaEmpty}>Aún no agregaste plantas en esta área.</p>
-              ) : (
-                <div style={styles.grid}>
-                  {tipoPlants.map((p) => {
-                    const info = tipoInfo(tipos, p.tipo);
-                    const risk = riskById[p.id];
-                    const ult = lastEvento(p);
-                    return (
-                      <div key={p.id} style={{ ...styles.card, ...(risk ? styles.cardAtRisk : {}) }} className="plant-card">
-                        <div style={{ ...styles.cardStripe, background: info.color }} />
-                        <div style={styles.cardImageWrap} onClick={() => setDetailPlantId(p.id)}>
-                          {p.imagen ? (
-                            <img src={p.imagen} alt={p.nombre} style={styles.cardImage} />
-                          ) : (
-                            <div style={{ ...styles.cardImagePlaceholder, background: info.color + "22" }}>
-                              <Leaf size={26} color={info.color} strokeWidth={1.5} />
-                            </div>
-                          )}
-                          <div style={styles.cardImageOverlay}>
-                            <h3 style={styles.cardNameOnImage}>{p.nombre}</h3>
-                            {p.variedad && <p style={styles.cardVarietyOnImage}>{p.variedad}</p>}
-                          </div>
-                          {p.aiIdentified && <span style={styles.aiTag}><Sparkles size={11} /> IA</span>}
-                          {risk && <span style={styles.riskTag}><AlertTriangle size={11} /> Riesgo hoy</span>}
-                        </div>
-                        <div style={styles.cardBody} onClick={() => setDetailPlantId(p.id)}>
-                          {spaces.find((s) => s.id === p.spaceId) && (
-                            <p style={styles.cardMeta}><MapPin size={12} /> {spaces.find((s) => s.id === p.spaceId).nombre}</p>
-                          )}
-                          {p.ubicacion && <p style={styles.cardMeta}><MapPin size={12} /> {p.ubicacion}</p>}
-
-                          {risk && (
-                            <div style={styles.riskBox}>
-                              <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A3B1D" }}>{risk.riesgo}</div>
-                              <div style={{ fontSize: 11.5, color: "#5C4A2E", marginTop: 2 }}>{risk.sugerencia}</div>
-                            </div>
-                          )}
-
-                          </div>
-                        <div style={styles.cardActions}>
-                          <button style={styles.iconBtn} className="icon-btn" onClick={(e) => { e.stopPropagation(); setLogPlantId(p.id); }} aria-label="Ver bitácora"><ClipboardList size={14} /></button>
-                          <button style={styles.iconBtn} className="icon-btn" onClick={(e) => { e.stopPropagation(); openEdit(p); }} aria-label="Editar planta"><Pencil size={14} /></button>
-                          <button style={styles.iconBtn} className="icon-btn" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} aria-label="Eliminar planta"><Trash2 size={14} /></button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              {renderGroupHeader(t.id, t.color, t.label, tipoPlants.length)}
+              {!isCollapsed && (
+                tipoPlants.length === 0 ? (
+                  <p style={styles.areaEmpty}>Aún no agregaste plantas en esta área.</p>
+                ) : (
+                  <div style={styles.grid}>{tipoPlants.map(renderPlantCard)}</div>
+                )
               )}
             </section>
           );
         })}
+
+        {loaded && filterTipo === "todos" && sinTipoPlants.length > 0 && (
+          <section style={styles.area}>
+            {renderGroupHeader(SIN_TIPO_ID, "#9C8B6E", "Sin tipo", sinTipoPlants.length)}
+            {!collapsedGroups.has(SIN_TIPO_ID) && (
+              <div style={styles.grid}>{sinTipoPlants.map(renderPlantCard)}</div>
+            )}
+          </section>
+        )}
       </div>
       </>
       )}
@@ -2449,12 +2631,12 @@ export default function App() {
 
 const styles = {
   page: { minHeight: "100vh", background: "#F1E9D2", color: "#211C14", fontFamily: "'Work Sans', sans-serif", padding: "28px 20px 60px", position: "relative", overflow: "hidden", zIndex: 0 },
-  watermarkTL: { position: "absolute", top: -50, right: -50, color: "#2F5233", opacity: 0.07, zIndex: -1, pointerEvents: "none", transform: "rotate(-18deg)" },
-  watermarkBR: { position: "absolute", bottom: 10, left: -40, color: "#A85C32", opacity: 0.08, zIndex: -1, pointerEvents: "none", transform: "rotate(12deg)" },
+  watermarkTL: { position: "absolute", top: -50, right: -50, color: "var(--color-primary, #2F5233)", opacity: 0.07, zIndex: -1, pointerEvents: "none", transform: "rotate(-18deg)" },
+  watermarkBR: { position: "absolute", bottom: 10, left: -40, color: "var(--color-accent, #A85C32)", opacity: 0.08, zIndex: -1, pointerEvents: "none", transform: "rotate(12deg)" },
   watermarkMid: { position: "absolute", top: "38%", right: -30, color: "#5C7A4A", opacity: 0.06, zIndex: -1, pointerEvents: "none", transform: "rotate(24deg)" },
   header: { maxWidth: 980, margin: "0 auto 24px" },
   headerTop: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 },
-  eyebrow: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "#A85C32", marginBottom: 8 },
+  eyebrow: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-accent, #A85C32)", marginBottom: 8 },
   h1: { fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: "clamp(36px, 6vw, 56px)", margin: 0, lineHeight: 1 },
   sub: { marginTop: 10, maxWidth: 480, color: "#5C4A2E", fontSize: 14.5, lineHeight: 1.5 },
   statBox: { display: "flex", flexDirection: "column", alignItems: "flex-end", borderLeft: "2px solid #211C14", paddingLeft: 14 },
@@ -2479,7 +2661,7 @@ const styles = {
   cancelBtnSmall: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#6B4F2A", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 14px", fontSize: 13 },
   climatePanel: { marginTop: 14, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 10, padding: "16px 18px" },
   climateHeaderRow: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 },
-  refreshBtn: { display: "flex", alignItems: "center", gap: 6, background: "#211C14", color: "#F1E9D2", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 12, fontWeight: 600 },
+  refreshBtn: { display: "flex", alignItems: "center", gap: 6, background: "var(--color-secondary, #211C14)", color: "#F1E9D2", border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 12, fontWeight: 600 },
   locationInput: { border: "1px solid #D8C9A0", borderRadius: 20, padding: "6px 12px", fontSize: 12.5, background: "#fff", color: "#211C14", minWidth: 160 },
   climateEmpty: { fontSize: 12.5, color: "#6B4F2A", marginTop: 10, marginBottom: 0 },
   climateError: { fontSize: 12.5, color: "#8A3B1D", marginTop: 10, marginBottom: 0 },
@@ -2492,7 +2674,10 @@ const styles = {
   climateChecked: { fontSize: 10.5, color: "#8A7857", marginTop: 12, marginBottom: 0 },
   tabBar: { maxWidth: 980, margin: "0 auto 16px", display: "flex", gap: 8 },
   tabBtn: { background: "transparent", border: "1px solid #D8C9A0", color: "#6B4F2A", borderRadius: 20, padding: "7px 16px", fontSize: 13, fontWeight: 600 },
-  tabBtnActive: { background: "#211C14", color: "#F1E9D2", border: "1px solid #211C14" },
+  tabBtnActive: { background: "var(--color-secondary, #211C14)", color: "#F1E9D2", border: "1px solid var(--color-secondary, #211C14)" },
+  themeRow: { display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 },
+  themeSwatch: { display: "flex", flexDirection: "column", gap: 6 },
+  colorInput: { width: 56, height: 36, padding: 2, border: "1px solid #D8C9A0", borderRadius: 8, background: "#fff", cursor: "pointer" },
   dashGrid: { maxWidth: 980, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 },
   dashGrid2: { maxWidth: 980, margin: "16px auto 0", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 },
   statTile: { background: "#fff", border: "1px solid #D8C9A0", borderRadius: 10, padding: "16px 18px" },
@@ -2514,7 +2699,7 @@ const styles = {
   calendarGrid: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginTop: 6 },
   calendarCellEmpty: { minHeight: 68, background: "transparent" },
   calendarCell: { minHeight: 68, background: "#F8F1E0", border: "1px solid #E4DAC0", borderRadius: 6, padding: "4px 5px", display: "flex", flexDirection: "column", gap: 2 },
-  calendarCellToday: { borderColor: "#A85C32", borderWidth: 2 },
+  calendarCellToday: { borderColor: "var(--color-accent, #A85C32)", borderWidth: 2 },
   calendarCellNum: { fontSize: 11, fontWeight: 600, color: "#3C3120" },
   calendarTaskChip: { fontSize: 9.5, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 4, padding: "1px 4px", color: "#3C3120", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   calendarTaskChipOverdue: { background: "#F3D8C8", borderColor: "#E7C4A5", color: "#8A3B1D" },
@@ -2522,7 +2707,7 @@ const styles = {
   searchWrap: { display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #D8C9A0", borderRadius: 8, padding: "9px 12px", flex: "1 1 220px" },
   searchInput: { border: "none", outline: "none", fontSize: 14, flex: 1, background: "transparent", color: "#211C14" },
   select: { border: "1px solid #D8C9A0", borderRadius: 8, padding: "9px 12px", fontSize: 14, background: "#fff", color: "#211C14" },
-  addBtn: { display: "flex", alignItems: "center", gap: 6, background: "#2F5233", color: "#F1E9D2", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
+  addBtn: { display: "flex", alignItems: "center", gap: 6, background: "var(--color-primary, #2F5233)", color: "#F1E9D2", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
   addBtnGhostSmall: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#211C14", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 14px", fontSize: 14, fontWeight: 600 },
   addBtnGhost: { display: "flex", alignItems: "center", gap: 6, background: "transparent", color: "#211C14", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600 },
   errorBanner: { maxWidth: 980, margin: "0 auto 16px", background: "#F3D8C8", color: "#6B2E12", padding: "10px 14px", borderRadius: 8, fontSize: 13.5 },
@@ -2533,7 +2718,7 @@ const styles = {
   emptyText: { fontSize: 13.5, color: "#6B4F2A", margin: 0 },
   areas: { maxWidth: 980, margin: "0 auto", display: "flex", flexDirection: "column", gap: 30 },
   area: {},
-  areaHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 },
+  areaHeader: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12, cursor: "pointer", userSelect: "none" },
   areaDot: { width: 10, height: 10, borderRadius: "50%", flexShrink: 0 },
   areaTitle: { fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 600, margin: 0 },
   areaCount: { fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#8A7857" },
@@ -2571,12 +2756,12 @@ const styles = {
   aiBanner: { display: "flex", alignItems: "center", gap: 6, background: "#E8DFC8", color: "#3C3120", fontSize: 12, padding: "7px 10px", borderRadius: 6, marginTop: 6 },
   arrivalBox: { display: "flex", gap: 8, background: "#E8DFC8", borderRadius: 8, padding: "9px 11px", marginTop: 10 },
   label: { fontFamily: "'Space Mono', monospace", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6B4F2A", marginTop: 12, marginBottom: 5 },
-  formSection: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "#A85C32", marginTop: 20, paddingTop: 14, borderTop: "1px solid #E4DAC0" },
+  formSection: { display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Mono', monospace", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-accent, #A85C32)", marginTop: 20, paddingTop: 14, borderTop: "1px solid #E4DAC0" },
   formRow2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
   input: { width: "100%", border: "1px solid #D8C9A0", borderRadius: 8, padding: "9px 11px", fontSize: 13.5, background: "#fff", color: "#211C14", outline: "none" },
   modalActions: { display: "flex", gap: 10, marginTop: 20 },
   cancelBtn: { flex: 1, background: "transparent", border: "1px solid #D8C9A0", borderRadius: 8, padding: "10px 0", fontSize: 13.5, color: "#211C14" },
-  saveBtn: { flex: 1, background: "#2F5233", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 13.5, fontWeight: 600, color: "#F1E9D2" },
+  saveBtn: { flex: 1, background: "var(--color-primary, #2F5233)", border: "none", borderRadius: 8, padding: "10px 0", fontSize: 13.5, fontWeight: 600, color: "#F1E9D2" },
   logForm: { marginTop: 14, borderTop: "1px solid #E4DAC0", paddingTop: 14 },
   logList: { display: "flex", flexDirection: "column", gap: 8, marginTop: 16 },
   logItem: { display: "flex", gap: 8, background: "#fff", border: "1px solid #E4DAC0", borderRadius: 8, padding: "8px 10px", alignItems: "flex-start" },

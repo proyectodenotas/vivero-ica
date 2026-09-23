@@ -62,6 +62,13 @@ create policy profiles_update on public.profiles
 -- No hay policy de insert/delete para clientes: la creación y baja de usuarios
 -- se hace desde endpoints serverless con la service role key, que ignora RLS.
 
+-- Tema de colores por usuario (Configuración → Apariencia). Defaults = los
+-- colores reales que ya usaba la app (verde, tinta oscura, terracota) — un
+-- perfil existente o uno nuevo sin fila explícita hereda estos valores solos.
+alter table public.profiles add column if not exists theme_primary text not null default '#2F5233';
+alter table public.profiles add column if not exists theme_secondary text not null default '#211C14';
+alter table public.profiles add column if not exists theme_accent text not null default '#A85C32';
+
 -- ---------------------------------------------------------------------------
 -- plant_types
 -- ---------------------------------------------------------------------------

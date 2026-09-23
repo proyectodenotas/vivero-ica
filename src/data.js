@@ -1,5 +1,18 @@
 import { supabase } from "./supabaseClient.js";
 
+// ---- profiles ----
+
+export async function updateProfileTheme(id, { theme_primary, theme_secondary, theme_accent }) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ theme_primary, theme_secondary, theme_accent })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // ---- plant_types ----
 
 export async function fetchPlantTypes() {
